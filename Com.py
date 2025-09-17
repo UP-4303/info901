@@ -2,12 +2,12 @@ import collections
 from time import sleep
 from pyeventbus3.pyeventbus3 import *
 
-from threading import Lock
+from threading import Lock, Event
 
 from random import randint
 
 from Mailbox import Mailbox
-from Message import Message, AutoIdMessage
+from Message import Message, AutoIdMessage, AckMessage, SyncMessage
 
 class Com:
     timeout = 1
@@ -21,6 +21,11 @@ class Com:
         self.mutex = Lock()
         self.id: None | int = None
         self.nbProcess: None | int = None
+
+        self.ackEvent: Event = Event()
+        self.syncEvent: Event = Event()
+        self.syncMessage: SyncMessage | None = None
+
         self.autoId()
 
     @subscribe(threadMode= Mode.PARALLEL, onEvent=AutoIdMessage)
@@ -62,10 +67,28 @@ class Com:
         pass
 
     def sendToSync(self, message: any, destId: int):
-        pass
+        self.sendTo(message, destId)
+        self.ackEvent.wait()
+        self.ackEvent.clear()
 
     def recevFromSync(self, srcId: int) -> Message:
-        pass
+        self.syncEvent.wait()
+        self.syncEvent.clear()
+        self.sendTo(AckMessage(self.id, srcId), srcId)
+        msg = self.syncMessage
+        self.syncMessage = None
+        return msg
+    
+    @subscribe(threadMode= Mode.PARALLEL, onEvent=AckMessage)
+    def onAutoIdReceive(self, message: AckMessage):
+        if message.recipient == self.id:
+            self.ackEvent.set()
+    
+    @subscribe(threadMode= Mode.PARALLEL, onEvent=SyncMessage)
+    def onAutoIdReceive(self, message: SyncMessage):
+        if message.recipient == self.id:
+            self.syncEvent.set()
+            self.syncMessage = message
 
     def synchronize(self):
         pass
