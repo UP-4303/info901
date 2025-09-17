@@ -32,7 +32,6 @@ class Com:
     def onAutoIdReceive(self, message: AutoIdMessage):
         with self.mutex:
             self.receivedNumbers.append(message.content)
-            print(self.receivedNumbers)
 
     def autoId(self) -> None:
         sleep(Com.timeout)
@@ -40,8 +39,7 @@ class Com:
         while True:
             if myNumber == None:
                 myNumber = randint(0, Com.maxRand)
-                print(myNumber)
-                self.broadcast(AutoIdMessage(None, None, myNumber))
+                PyBus.Instance().post(AutoIdMessage(None, None, myNumber))
             sleep(Com.timeout)
             
             duplicate = [item for item, count in collections.Counter(self.receivedNumbers).items() if count > 1]
@@ -64,7 +62,7 @@ class Com:
         return self.id
 
     def sendTo(self, message: any, destId: int):
-        pass
+        PyBus.Instance().post(Message(self.id, destId, message))
 
     def sendToSync(self, message: any, destId: int):
         self.sendTo(message, destId)
@@ -100,10 +98,10 @@ class Com:
         pass
 
     def broadcast(self, message: any):
-        PyBus.Instance().post(message)
+        PyBus.Instance().post(Message(self.id, None, message))
 
     @subscribe(threadMode= Mode.PARALLEL, onEvent=Message)
     def onReceive(self, message: Message):
-        if message.recipient != self.myId or message.isSystem:
+        if message.recipient != self.id or message.isSystem:
             return
         self.mailbox.addMessage(message)
