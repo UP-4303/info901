@@ -9,19 +9,23 @@ class Process(Thread):
     def __init__(self,name):
         Thread.__init__(self)
 
-        self.com = Com()
+        self.com = None
         
-        self.nbProcess = self.com.getNbProcess()
+        self.nbProcess = None
 
-        self.myId = self.com.getMyId()
+        self.myId = None
         self.setName(name)
-
 
         self.alive = True
         self.start()
     
+    def init(self):
+        self.com = Com()
+        self.nbProcess = self.com.getNbProcess()
+        self.myId = self.com.getMyId()
 
     def run(self):
+        self.init()
         print(self.myId)
         return
         loop = 0

@@ -23,7 +23,6 @@ class Com:
         self.nbProcess: None | int = None
         self.autoId()
 
-
     @subscribe(threadMode= Mode.PARALLEL, onEvent=AutoIdMessage)
     def onAutoIdReceive(self, message: AutoIdMessage):
         with self.mutex:
