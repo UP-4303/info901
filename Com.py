@@ -1,22 +1,23 @@
 from Mailbox import Mailbox
+from Message import Message
 
 class Com:
     def __init__(self):
         self.mailbox = Mailbox()
     
-    def getNbProcess(self):
+    def getNbProcess(self) -> int:
         pass
 
-    def getMyId(self):
+    def getMyId(self) -> int:
         pass
 
-    def sendTo(self, message, destId):
+    def sendTo(self, message: any, destId: int):
         pass
 
-    def sendToSync(self, message, destId):
+    def sendToSync(self, message: any, destId: int):
         pass
 
-    def recevFromSync(self, message, srcId):
+    def recevFromSync(self, srcId: int) -> Message:
         pass
 
     def synchronize(self):
@@ -28,6 +29,6 @@ class Com:
     def releaseSC(self):
         pass
 
-    def broadcast(self, message):
+    def broadcast(self, message: any):
         pass
 
