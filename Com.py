@@ -7,7 +7,7 @@ from threading import Lock, Event
 from random import randint
 
 from Mailbox import Mailbox
-from Message import Message, AutoIdMessage, AckMessage, SyncMessage
+from Message import Message, AutoIdMessage, AckMessage, SyncMessage, TockenMessage
 
 class Com:
     timeout = 1
@@ -26,7 +26,11 @@ class Com:
         self.syncEvent: Event = Event()
         self.syncMessage: SyncMessage | None = None
 
+        self.tockenEvent: Event = Event()
+        self.waitingForTocken: bool = False
+
         self.autoId()
+        self.startTocken()
 
     @subscribe(threadMode= Mode.PARALLEL, onEvent=AutoIdMessage)
     def onAutoIdReceive(self, message: AutoIdMessage):
@@ -55,6 +59,11 @@ class Com:
         self.nbProcess = len(self.receivedNumbers)
         return
     
+    def startTocken(self) -> None:
+        if self.id == self.nbProcess - 1:
+            sleep(Com.timeout)
+            PyBus.Instance().post(TockenMessage(self.id, 0))
+
     def getNbProcess(self) -> int:
         return self.nbProcess
 
@@ -65,18 +74,13 @@ class Com:
         PyBus.Instance().post(Message(self.id, destId, message))
 
     def sendToSync(self, message: any, destId: int):
-        print("Process "+str(self.id)+" sending sync message to "+str(destId)+" : "+str(message), flush=True)
         PyBus.Instance().post(SyncMessage(self.id, destId, message))
-        print("Process "+str(self.id)+" waiting for ack from "+str(destId), flush=True)
         self.ackEvent.wait()
         self.ackEvent.clear()
-        print("Process "+str(self.id)+" received ack from "+str(destId), flush=True)
 
     def recevFromSync(self, srcId: int) -> Message:
-        print("Process "+str(self.id)+" waiting for sync message from "+str(srcId), flush=True)
         self.syncEvent.wait()
         self.syncEvent.clear()
-        print("Process "+str(self.id)+" received sync message from "+str(srcId)+" sending Ack", flush=True)
         PyBus.Instance().post(AckMessage(self.id, srcId))
         msg = self.syncMessage
         self.syncMessage = None
@@ -97,10 +101,21 @@ class Com:
         pass
 
     def requestSC(self):
-        pass
+        self.waitingForTocken = True
+        self.tockenEvent.wait()
+        self.tockenEvent.clear()
 
     def releaseSC(self):
-        pass
+        PyBus.Instance().post(TockenMessage(self.id, (self.id + 1) % self.nbProcess))
+
+    @subscribe(threadMode= Mode.PARALLEL, onEvent=TockenMessage)
+    def onAutoIdReceive(self, message: TockenMessage):
+        if message.recipient == self.id:
+            if self.waitingForTocken:
+                self.waitingForTocken = False
+                self.tockenEvent.set()
+            else:
+                PyBus.Instance().post(TockenMessage(self.id, (self.id + 1) % self.nbProcess))
 
     def broadcast(self, message: any):
         PyBus.Instance().post(Message(self.id, None, message))
