@@ -65,14 +65,14 @@ class Com:
         PyBus.Instance().post(Message(self.id, destId, message))
 
     def sendToSync(self, message: any, destId: int):
-        self.sendTo(message, destId)
+        PyBus.Instance().post(SyncMessage(self.id, destId, message), destId)
         self.ackEvent.wait()
         self.ackEvent.clear()
 
     def recevFromSync(self, srcId: int) -> Message:
         self.syncEvent.wait()
         self.syncEvent.clear()
-        self.sendTo(AckMessage(self.id, srcId), srcId)
+        PyBus.Instance().post(AckMessage(self.id, srcId), srcId)
         msg = self.syncMessage
         self.syncMessage = None
         return msg
