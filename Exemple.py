@@ -22,6 +22,8 @@ class Process(Thread):
     
 
     def run(self):
+        print(self.myId)
+        return
         loop = 0
         while self.alive:
             print(self.getName() + " Loop: " + str(loop))

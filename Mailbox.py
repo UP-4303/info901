@@ -9,3 +9,6 @@ class Mailbox:
     
     def getMessage(self) -> Message | None: 
         return self.messages.pop(0) if not self.isEmpty() else None
+    
+    def addMessage(self, message: Message) -> None:
+        self.messages.append(message)
