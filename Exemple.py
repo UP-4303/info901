@@ -26,8 +26,7 @@ class Process(Thread):
 
     def run(self):
         self.init()
-        print(self.myId)
-        return
+        
         loop = 0
         while self.alive:
             print(self.getName() + " Loop: " + str(loop))
@@ -37,7 +36,7 @@ class Process(Thread):
                 self.com.sendTo("j'appelle 2 et je te recontacte après", 1)
                 
                 self.com.sendToSync("J'ai laissé un message à 1, je le rappellerai après, on se sychronise tous et on attaque la partie ?", 2)
-                self.com.recevFromSync(msg, 2)
+                msg = self.com.recevFromSync(2)
                
                 self.com.sendToSync("2 est OK pour jouer, on se synchronise et c'est parti!",1)
                     
