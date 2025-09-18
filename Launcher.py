@@ -7,15 +7,18 @@ def launch(nbProcess, runningTime=5):
     for i in range(nbProcess):
         processes = processes + [Process("P"+str(i))]
 
-    sleep(runningTime)
+    # sleep(runningTime)
+
+    # for p in processes:
+    #     p.stop()
 
     for p in processes:
-        p.stop()
+        p.waitStopped()
 
 if __name__ == '__main__':
 
     #bus = EventBus.getInstance()
     
-    launch(nbProcess=3, runningTime=5)
+    launch(nbProcess=3, runningTime=30)
 
     #bus.stop()

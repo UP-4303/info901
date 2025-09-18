@@ -29,71 +29,71 @@ class Process(Thread):
 
         print(self.getName() + " started with id "+str(self.myId)+" among "+str(self.nbProcess)+" process(es)", flush=True)
         
-        loop = 0
-        while self.alive:
-            print(self.getName() + " Loop: " + str(loop), flush=True)
-            sleep(1)
-
-            if self.myId == 0:
-                self.com.sendTo("j'appelle 2 et je te recontacte après", 1)
+        if self.myId == 0:
+            self.com.sendTo("j'appelle 2 et je te recontacte après", 1)
+            
+            self.com.sendToSync("J'ai laissé un message à 1, je le rappellerai après, on se sychronise tous et on attaque la partie ?", 2)
+            msg = self.com.recevFromSync(2)
+            print("<0> Reçu de 2 : "+str(msg.getContent()), flush=True)
+            
+            self.com.sendToSync("2 est OK pour jouer, on se synchronise et c'est parti!",1)
                 
-                self.com.sendToSync("J'ai laissé un message à 1, je le rappellerai après, on se sychronise tous et on attaque la partie ?", 2)
-                msg = self.com.recevFromSync(2)
-                print("<0> Reçu de 2 : "+str(msg.getContent()), flush=True)
-               
-                self.com.sendToSync("2 est OK pour jouer, on se synchronise et c'est parti!",1)
-                    
-                self.com.synchronize()
-                    
-                self.com.requestSC()
-                if self.com.mailbox.isEmpty():
-                    print("Catched !", flush=True)
-                    self.com.broadcast("J'ai gagné !!!")
-                else:
-                    msg = self.com.mailbox.getMessage()
-                    print(str(msg.getSender())+" à eu le jeton en premier", flush=True)
-                self.com.releaseSC()
+            self.com.synchronize()
+                
+            self.com.requestSC()
+            if self.com.mailbox.isEmpty():
+                print("Catched !", flush=True)
+                self.com.broadcast("J'ai gagné !!!")
+            else:
+                msg = self.com.mailbox.getMessage()
+                print(str(msg.getSender())+" à eu le jeton en premier", flush=True)
+            self.com.releaseSC()
 
 
-            if self.myId == 1:
-                if not self.com.mailbox.isEmpty():
-                    msg = self.com.mailbox.getMessage()
-                    print("<1> Reçu de "+str(msg.getSender())+" : "+str(msg.getContent()), flush=True)
+        if self.myId == 1:
+            while self.com.mailbox.isEmpty():
+                sleep(0.5)
+            msg = self.com.mailbox.getMessage()
+            print("<1> Reçu de "+str(msg.getSender())+" : "+str(msg.getContent()), flush=True)
 
-                    msg = self.com.recevFromSync(0)
-                    print("<1> Reçu de 0 : "+str(msg.getContent()), flush=True)
+            msg = self.com.recevFromSync(0)
+            print("<1> Reçu de 0 : "+str(msg.getContent()), flush=True)
 
-                    self.com.synchronize()
-                    
-                    self.com.requestSC()
-                    if self.com.mailbox.isEmpty():
-                        print("Catched !", flush=True)
-                        self.com.broadcast("J'ai gagné !!!")
-                    else:
-                        msg = self.com.mailbox.getMessage()
-                        print(str(msg.getSender())+" à eu le jeton en premier", flush=True)
-                    self.com.releaseSC()
-                    
-            if self.myId == 2:
-                msg = self.com.recevFromSync(0)
-                print("<2> Reçu de 0 : "+str(msg.getContent()), flush=True)
+            self.com.synchronize()
+            
+            self.com.requestSC()
+            if self.com.mailbox.isEmpty():
+                print("Catched !", flush=True)
+                self.com.broadcast("J'ai gagné !!!")
+            else:
+                msg = self.com.mailbox.getMessage()
+                print(str(msg.getSender())+" à eu le jeton en premier", flush=True)
+            self.com.releaseSC()
+            
+        if self.myId == 2:
+            msg = self.com.recevFromSync(0)
+            print("<2> Reçu de 0 : "+str(msg.getContent()), flush=True)
 
-                self.com.sendToSync("OK", 0)
+            self.com.sendToSync("OK", 0)
 
-                self.com.synchronize()
-                    
-                self.com.requestSC()
-                if self.com.mailbox.isEmpty():
-                    print("Catched !", flush=True)
-                    self.com.broadcast("J'ai gagné !!!")
-                else:
-                    msg = self.com.mailbox.getMessage()
-                    print(str(msg.getSender())+" à eu le jeton en premier", flush=True)
-                self.com.releaseSC()
+            self.com.synchronize()
+                
+            self.com.requestSC()
+            if self.com.mailbox.isEmpty():
+                print("Catched !", flush=True)
+                self.com.broadcast("J'ai gagné !!!")
+            else:
+                msg = self.com.mailbox.getMessage()
+                print(str(msg.getSender())+" à eu le jeton en premier", flush=True)
+            self.com.releaseSC()
 
-            loop+=1
-        print(self.getName() + " stopped", flush=True)
+        print(self.getName() + " execution finished", flush=True)
+
+        self.stop()
 
     def stop(self):
+        self.com.alive = False
         self.alive = False
+
+    def waitStopped(self):
         self.join()

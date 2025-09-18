@@ -34,6 +34,8 @@ class Com:
         self.joinEvent: Event = Event()
         self.joiningIds: set = set()
 
+        self.alive = False
+
         self.autoId()
         self.startToken()
 
@@ -43,6 +45,8 @@ class Com:
             self.receivedNumbers.append(message.content)
 
     def autoId(self) -> None:
+        self.alive = True
+
         sleep(Com.timeout)
         myNumber = None
         while True:
@@ -96,12 +100,12 @@ class Com:
     
     @subscribe(threadMode= Mode.PARALLEL, onEvent=AckMessage)
     def onAckReceive(self, message: AckMessage):
-        if message.recipient == self.id:
+        if message.recipient == self.id and self.alive:
             self.ackEvent.set()
     
     @subscribe(threadMode= Mode.PARALLEL, onEvent=SyncMessage)
     def onSyncReceive(self, message: SyncMessage):
-        if message.recipient == self.id:
+        if message.recipient == self.id and self.alive:
             self.syncEvent.set()
             self.syncMessage = message
 
@@ -115,6 +119,8 @@ class Com:
 
     @subscribe(threadMode= Mode.PARALLEL, onEvent=JoinMessage)
     def onJoinRecieve(self, message: JoinMessage):
+        if not self.alive:
+            return
         print("Process "+str(self.id)+" received join from "+str(message.sender), flush=True)
         self.joiningIds.add(message.sender)
         print("Process "+str(self.id)+" currently joined with "+str(len(self.joiningIds))+"/"+str(self.nbProcess), flush=True)
@@ -134,7 +140,7 @@ class Com:
 
     @subscribe(threadMode= Mode.PARALLEL, onEvent=TokenMessage)
     def onTokenReceive(self, message: TokenMessage):
-        if message.recipient == self.id:
+        if message.recipient == self.id and self.alive:
             if self.waitingForToken:
                 self.waitingForToken = False
                 self.tokenEvent.set()
@@ -148,7 +154,7 @@ class Com:
 
     @subscribe(threadMode= Mode.PARALLEL, onEvent=Message)
     def onReceive(self, message: Message):
-        if message.recipient != self.id or message.isSystem:
+        if message.recipient != self.id or message.isSystem or not self.alive:
             return
         self.clock.sync(message.clock)
         print(f'{self.id} receiving "{message.content}" from {message.sender} with clock {self.clock.clock}', flush=True)
