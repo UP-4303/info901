@@ -1,11 +1,15 @@
-from __future__ import annotations
+from threading import Lock
 
 class LamportClock:
+
     def __init__(self):
+        self.semaphore = Lock()
         self.clock = 0
 
-    def tick(self):
-        self.clock += 1
+    def inc_clock(self):
+        with self.semaphore:
+            self.clock += 1
 
     def sync(self, other: int):
-        self.clock = max(self.clock, other)+1
+        with self.semaphore:
+            self.clock = max(self.clock, other)+1

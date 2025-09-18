@@ -76,7 +76,7 @@ class Com:
         return self.id
 
     def sendTo(self, message: any, destId: int):
-        self.clock.tick()
+        self.clock.inc_clock()
         print(f'{self.id} sending "{message}" to {destId} with clock {self.clock.clock}', flush=True)
         PyBus.Instance().post(Message(self.id, destId, message, self.clock.clock))
 
@@ -141,7 +141,7 @@ class Com:
                 PyBus.Instance().post(TokenMessage(self.id, (self.id + 1) % self.nbProcess))
 
     def broadcast(self, message: any):
-        self.clock.tick()
+        self.clock.inc_clock()
         print(f'{self.id} broadcasting "{message}" with clock {self.clock.clock}', flush=True)
         PyBus.Instance().post(Message(self.id, None, message, self.clock.clock))
 
