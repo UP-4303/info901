@@ -27,14 +27,14 @@ class Process(Thread):
     def run(self):
         self.init()
 
-        print(self.getName() + " started with id "+str(self.myId)+" among "+str(self.nbProcess)+" process(es)", flush=True)
+        print(f"{self.getName()} started with id {self.myId} among {self.nbProcess} process(es)", flush=True)
         
         if self.myId == 0:
             self.com.sendTo("j'appelle 2 et je te recontacte après", 1)
             
             self.com.sendToSync("J'ai laissé un message à 1, je le rappellerai après, on se sychronise tous et on attaque la partie ?", 2)
             msg = self.com.recevFromSync(2)
-            print("<0> Reçu de 2 : "+str(msg.getContent()), flush=True)
+            print(f"Process 0 Reçu de 2 : {msg.getContent()}", flush=True)
             
             self.com.sendToSync("2 est OK pour jouer, on se synchronise et c'est parti!",1)
                 
@@ -42,11 +42,11 @@ class Process(Thread):
                 
             self.com.requestSC()
             if self.com.mailbox.isEmpty():
-                print("Catched !", flush=True)
+                print(f"Process 0 Catched !", flush=True)
                 self.com.ackNeededBroadcast("J'ai gagné !!!")
             else:
                 msg = self.com.mailbox.getMessage()
-                print(str(msg.getSender())+" à eu le jeton en premier", flush=True)
+                print(f"Process 0 {msg.getSender()} à eu le jeton en premier", flush=True)
             self.com.releaseSC()
 
 
@@ -54,25 +54,25 @@ class Process(Thread):
             while self.com.mailbox.isEmpty():
                 sleep(0.5)
             msg = self.com.mailbox.getMessage()
-            print("<1> Reçu de "+str(msg.getSender())+" : "+str(msg.getContent()), flush=True)
+            print(f"Process 1 Reçu de "+str(msg.getSender())+" : "+str(msg.getContent()), flush=True)
 
             msg = self.com.recevFromSync(0)
-            print("<1> Reçu de 0 : "+str(msg.getContent()), flush=True)
+            print(f"Process 1 Reçu de 0 : {msg.getContent()}", flush=True)
 
             self.com.synchronize()
             
             self.com.requestSC()
             if self.com.mailbox.isEmpty():
-                print("Catched !", flush=True)
+                print(f"Process 1 Catched !", flush=True)
                 self.com.ackNeededBroadcast("J'ai gagné !!!")
             else:
                 msg = self.com.mailbox.getMessage()
-                print(str(msg.getSender())+" à eu le jeton en premier", flush=True)
+                print(f"Process 1 {msg.getSender()} à eu le jeton en premier", flush=True)
             self.com.releaseSC()
             
         if self.myId == 2:
             msg = self.com.recevFromSync(0)
-            print("<2> Reçu de 0 : "+str(msg.getContent()), flush=True)
+            print(f"Process 2 Reçu de 0 : {msg.getContent()}", flush=True)
 
             self.com.sendToSync("OK", 0)
 
@@ -80,14 +80,14 @@ class Process(Thread):
                 
             self.com.requestSC()
             if self.com.mailbox.isEmpty():
-                print("Catched !", flush=True)
+                print(f"Process 2 Catched !", flush=True)
                 self.com.ackNeededBroadcast("J'ai gagné !!!")
             else:
                 msg = self.com.mailbox.getMessage()
-                print(str(msg.getSender())+" à eu le jeton en premier", flush=True)
+                print(f"Process 2 {msg.getSender()} à eu le jeton en premier", flush=True)
             self.com.releaseSC()
 
-        print(self.getName() + " execution finished", flush=True)
+        print(f"{self.getName()} execution finished", flush=True)
 
         self.stop()
 
