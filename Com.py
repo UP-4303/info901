@@ -81,7 +81,7 @@ class Com:
         PyBus.Instance().post(Message(self.id, destId, message, self.clock.clock))
 
     def sendToSync(self, message: any, destId: int):
-        PyBus.Instance().post(SyncMessage(self.id, destId, message))
+        PyBus.Instance().post(SyncMessage(self.id, destId, message, self.clock.clock))
         self.ackEvent.wait()
         self.ackEvent.clear()
 
@@ -90,6 +90,7 @@ class Com:
         self.syncEvent.clear()
         PyBus.Instance().post(AckMessage(self.id, srcId))
         msg = self.syncMessage
+        self.clock.sync(msg.clock)
         self.syncMessage = None
         return msg
     

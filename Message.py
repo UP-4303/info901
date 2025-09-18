@@ -21,8 +21,8 @@ class AckMessage(Message):
         super(AckMessage, self).__init__(sender, recipient, None, 0, True)
 
 class SyncMessage(Message):
-    def __init__(self, sender: int, recipient: int, content: any):
-        super(SyncMessage, self).__init__(sender, recipient, content, 0, True)
+    def __init__(self, sender: int, recipient: int, content: any, clock: int):
+        super(SyncMessage, self).__init__(sender, recipient, content, clock, True)
 
 class TokenMessage(Message):
     def __init__(self, sender: int, recipient: int):
