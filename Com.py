@@ -7,7 +7,8 @@ from threading import Lock, Event
 from random import randint
 
 from Mailbox import Mailbox
-from Message import Message, AutoIdMessage, AckMessage, SyncMessage, TockenMessage, JoinMessage
+from Message import Message, AutoIdMessage, AckMessage, SyncMessage, TokenMessage, JoinMessage
+from LamportClock import LamportClock
 
 class Com:
     timeout = 1
@@ -15,6 +16,7 @@ class Com:
 
     def __init__(self):
         self.mailbox = Mailbox()
+        self.clock = LamportClock()
         PyBus.Instance().register(self, self)
 
         self.receivedNumbers = []
@@ -26,14 +28,14 @@ class Com:
         self.syncEvent: Event = Event()
         self.syncMessage: SyncMessage | None = None
 
-        self.tockenEvent: Event = Event()
-        self.waitingForTocken: bool = False
+        self.tokenEvent: Event = Event()
+        self.waitingForToken: bool = False
 
         self.joinEvent: Event = Event()
         self.joiningIds: set = set()
 
         self.autoId()
-        self.startTocken()
+        self.startToken()
 
     @subscribe(threadMode= Mode.PARALLEL, onEvent=AutoIdMessage)
     def onAutoIdReceive(self, message: AutoIdMessage):
@@ -62,10 +64,10 @@ class Com:
         self.nbProcess = len(self.receivedNumbers)
         return
     
-    def startTocken(self) -> None:
+    def startToken(self) -> None:
         if self.id == self.nbProcess - 1:
             sleep(Com.timeout)
-            PyBus.Instance().post(TockenMessage(self.id, 0))
+            PyBus.Instance().post(TokenMessage(self.id, 0))
 
     def getNbProcess(self) -> int:
         return self.nbProcess
@@ -74,7 +76,9 @@ class Com:
         return self.id
 
     def sendTo(self, message: any, destId: int):
-        PyBus.Instance().post(Message(self.id, destId, message))
+        self.clock.tick()
+        print(f'{self.id} sending "{message}" to {destId} with clock {self.clock.clock}', flush=True)
+        PyBus.Instance().post(Message(self.id, destId, message, self.clock.clock))
 
     def sendToSync(self, message: any, destId: int):
         PyBus.Instance().post(SyncMessage(self.id, destId, message))
@@ -118,29 +122,33 @@ class Com:
 
     def requestSC(self):
         print("Process "+str(self.id)+" is requesting critical section", flush=True)
-        self.waitingForTocken = True
-        self.tockenEvent.wait()
-        self.tockenEvent.clear()
+        self.waitingForToken = True
+        self.tokenEvent.wait()
+        self.tokenEvent.clear()
         print("Process "+str(self.id)+" got the token", flush=True)
 
     def releaseSC(self):
         print("Process "+str(self.id)+" is releasing critical section", flush=True)
-        PyBus.Instance().post(TockenMessage(self.id, (self.id + 1) % self.nbProcess))
+        PyBus.Instance().post(TokenMessage(self.id, (self.id + 1) % self.nbProcess))
 
-    @subscribe(threadMode= Mode.PARALLEL, onEvent=TockenMessage)
-    def onTokenReceive(self, message: TockenMessage):
+    @subscribe(threadMode= Mode.PARALLEL, onEvent=TokenMessage)
+    def onTokenReceive(self, message: TokenMessage):
         if message.recipient == self.id:
-            if self.waitingForTocken:
-                self.waitingForTocken = False
-                self.tockenEvent.set()
+            if self.waitingForToken:
+                self.waitingForToken = False
+                self.tokenEvent.set()
             else:
-                PyBus.Instance().post(TockenMessage(self.id, (self.id + 1) % self.nbProcess))
+                PyBus.Instance().post(TokenMessage(self.id, (self.id + 1) % self.nbProcess))
 
     def broadcast(self, message: any):
-        PyBus.Instance().post(Message(self.id, None, message))
+        self.clock.tick()
+        print(f'{self.id} broadcasting "{message}" with clock {self.clock.clock}', flush=True)
+        PyBus.Instance().post(Message(self.id, None, message, self.clock.clock))
 
     @subscribe(threadMode= Mode.PARALLEL, onEvent=Message)
     def onReceive(self, message: Message):
         if message.recipient != self.id or message.isSystem:
             return
+        self.clock.sync(message.clock)
+        print(f'{self.id} receiving "{message.content}" from {message.sender} with clock {self.clock.clock}', flush=True)
         self.mailbox.addMessage(message)

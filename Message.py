@@ -1,9 +1,10 @@
 class Message:
-    def __init__(self, sender: int, recipient: int, content: any, isSystem=False):
+    def __init__(self, sender: int, recipient: int, content: any, clock: int, isSystem=False):
         self.sender = sender
         self.recipient = recipient
         self.content = content
         self.isSystem = isSystem
+        self.clock = clock
 
     def getSender(self) -> int:
         return self.sender
@@ -13,20 +14,16 @@ class Message:
     
 class AutoIdMessage(Message):
     def __init__(self, sender: int, recipient: int, content: int):
-        super(AutoIdMessage, self).__init__(sender, recipient, content, True)
+        super(AutoIdMessage, self).__init__(sender, recipient, content, 0, True)
 
 class AckMessage(Message):
     def __init__(self, sender: int, recipient: int):
-        super(AckMessage, self).__init__(sender, recipient, None, True)
+        super(AckMessage, self).__init__(sender, recipient, None, 0, True)
 
 class SyncMessage(Message):
     def __init__(self, sender: int, recipient: int, content: any):
-        super(SyncMessage, self).__init__(sender, recipient, content, True)
+        super(SyncMessage, self).__init__(sender, recipient, content, 0, True)
 
-class TockenMessage(Message):
+class TokenMessage(Message):
     def __init__(self, sender: int, recipient: int):
-        super(TockenMessage, self).__init__(sender, recipient, None, True)
-
-class JoinMessage(Message):
-    def __init__(self, sender: int):
-        super(JoinMessage, self).__init__(sender, None, None, True)
+        super(TokenMessage, self).__init__(sender, recipient, None, 0, True)
