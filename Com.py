@@ -7,7 +7,7 @@ from threading import Lock, Event
 from random import randint
 
 from Mailbox import Mailbox
-from Message import Message, AutoIdMessage, AckMessage, SyncMessage, TockenMessage
+from Message import Message, AutoIdMessage, AckMessage, SyncMessage, TockenMessage, JoinMessage
 
 class Com:
     timeout = 1
@@ -28,6 +28,9 @@ class Com:
 
         self.tockenEvent: Event = Event()
         self.waitingForTocken: bool = False
+
+        self.joinEvent: Event = Event()
+        self.joiningIds: set = set()
 
         self.autoId()
         self.startTocken()
@@ -87,29 +90,45 @@ class Com:
         return msg
     
     @subscribe(threadMode= Mode.PARALLEL, onEvent=AckMessage)
-    def onAutoIdReceive(self, message: AckMessage):
+    def onAckReceive(self, message: AckMessage):
         if message.recipient == self.id:
             self.ackEvent.set()
     
     @subscribe(threadMode= Mode.PARALLEL, onEvent=SyncMessage)
-    def onAutoIdReceive(self, message: SyncMessage):
+    def onSyncReceive(self, message: SyncMessage):
         if message.recipient == self.id:
             self.syncEvent.set()
             self.syncMessage = message
 
     def synchronize(self):
-        pass
+        print("Process "+str(self.id)+" is synchronizing", flush=True)
+        self.joiningIds = set()
+        PyBus.Instance().post(JoinMessage(self.id))
+        self.joinEvent.wait()
+        self.joinEvent.clear()
+        self.joiningIds.clear()
+        print("Process "+str(self.id)+" synchronized with "+str(self.nbProcess - 1)+" others", flush=True)
+
+    @subscribe(threadMode= Mode.PARALLEL, onEvent=JoinMessage)
+    def onJoinRecieve(self, message: JoinMessage):
+        print("Process "+str(self.id)+" received join from "+str(message.sender), flush=True)
+        self.joiningIds.add(message.sender)
+        if len(self.joiningIds) == self.nbProcess:
+            self.joinEvent.set()
 
     def requestSC(self):
+        print("Process "+str(self.id)+" is requesting critical section", flush=True)
         self.waitingForTocken = True
         self.tockenEvent.wait()
         self.tockenEvent.clear()
+        print("Process "+str(self.id)+" got the token", flush=True)
 
     def releaseSC(self):
+        print("Process "+str(self.id)+" is releasing critical section", flush=True)
         PyBus.Instance().post(TockenMessage(self.id, (self.id + 1) % self.nbProcess))
 
     @subscribe(threadMode= Mode.PARALLEL, onEvent=TockenMessage)
-    def onAutoIdReceive(self, message: TockenMessage):
+    def onTokenReceive(self, message: TockenMessage):
         if message.recipient == self.id:
             if self.waitingForTocken:
                 self.waitingForTocken = False
