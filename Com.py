@@ -8,6 +8,7 @@ from random import randint
 
 from Mailbox import Mailbox
 from Message import Message, AutoIdMessage, AckMessage, SyncMessage
+from LamportClock import LamportClock
 
 class Com:
     timeout = 1
@@ -15,6 +16,7 @@ class Com:
 
     def __init__(self):
         self.mailbox = Mailbox()
+        self.clock = LamportClock()
         PyBus.Instance().register(self, self)
 
         self.receivedNumbers = []
@@ -39,7 +41,7 @@ class Com:
         while True:
             if myNumber == None:
                 myNumber = randint(0, Com.maxRand)
-                PyBus.Instance().post(AutoIdMessage(None, None, myNumber))
+                PyBus.Instance().post(AutoIdMessage(None, None, myNumber, self.clock.clock))
             sleep(Com.timeout)
             
             duplicate = [item for item, count in collections.Counter(self.receivedNumbers).items() if count > 1]
@@ -62,11 +64,13 @@ class Com:
         return self.id
 
     def sendTo(self, message: any, destId: int):
-        PyBus.Instance().post(Message(self.id, destId, message))
+        self.clock.tick()
+        print(f'{self.id} sending "{message}" to {destId} with clock {self.clock.clock}', flush=True)
+        PyBus.Instance().post(Message(self.id, destId, message, self.clock.clock))
 
     def sendToSync(self, message: any, destId: int):
         print("Process "+str(self.id)+" sending sync message to "+str(destId)+" : "+str(message), flush=True)
-        PyBus.Instance().post(SyncMessage(self.id, destId, message))
+        PyBus.Instance().post(SyncMessage(self.id, destId, message, self.clock.clock))
         print("Process "+str(self.id)+" waiting for ack from "+str(destId), flush=True)
         self.ackEvent.wait()
         self.ackEvent.clear()
@@ -77,7 +81,7 @@ class Com:
         self.syncEvent.wait()
         self.syncEvent.clear()
         print("Process "+str(self.id)+" received sync message from "+str(srcId)+" sending Ack", flush=True)
-        PyBus.Instance().post(AckMessage(self.id, srcId))
+        PyBus.Instance().post(AckMessage(self.id, srcId, self.clock.clock))
         msg = self.syncMessage
         self.syncMessage = None
         return msg
@@ -103,10 +107,14 @@ class Com:
         pass
 
     def broadcast(self, message: any):
-        PyBus.Instance().post(Message(self.id, None, message))
+        self.clock.tick()
+        print(f'{self.id} broadcasting "{message}" with clock {self.clock.clock}', flush=True)
+        PyBus.Instance().post(Message(self.id, None, message, self.clock.clock))
 
     @subscribe(threadMode= Mode.PARALLEL, onEvent=Message)
     def onReceive(self, message: Message):
         if message.recipient != self.id or message.isSystem:
             return
+        self.clock.sync(message.clock)
+        print(f'{self.id} receiving "{message.content}" from {message.sender} with clock {self.clock.clock}', flush=True)
         self.mailbox.addMessage(message)

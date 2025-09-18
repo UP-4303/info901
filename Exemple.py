@@ -29,7 +29,7 @@ class Process(Thread):
         
         loop = 0
         while self.alive:
-            print(self.getName() + " Loop: " + str(loop))
+            print(self.getName() + " Loop: " + str(loop), flush=True)
             sleep(1)
 
             if self.myId == 0:
@@ -44,11 +44,11 @@ class Process(Thread):
                     
                 self.com.requestSC()
                 if self.com.mailbox.isEmpty():
-                    print("Catched !")
+                    print("Catched !", flush=True)
                     self.com.broadcast("J'ai gagné !!!")
                 else:
                     msg = self.com.mailbox.getMessage()
-                    print(str(msg.getSender())+" à eu le jeton en premier")
+                    print(str(msg.getSender())+" à eu le jeton en premier", flush=True)
                 self.com.releaseSC()
 
 
@@ -60,11 +60,11 @@ class Process(Thread):
                     
                     self.com.requestSC()
                     if self.com.mailbox.isEmpty():
-                        print("Catched !")
+                        print("Catched !", flush=True)
                         self.com.broadcast("J'ai gagné !!!")
                     else:
                         msg = self.com.mailbox.getMessage()
-                        print(str(msg.getSender())+" à eu le jeton en premier")
+                        print(str(msg.getSender())+" à eu le jeton en premier", flush=True)
                     self.com.releaseSC()
                     
             if self.myId == 2:
@@ -76,16 +76,16 @@ class Process(Thread):
                     
                 self.com.requestSC()
                 if self.com.mailbox.isEmpty():
-                    print("Catched !")
+                    print("Catched !", flush=True)
                     self.com.broadcast("J'ai gagné !!!")
                 else:
                     msg = self.com.mailbox.getMessage()
-                    print(str(msg.getSender())+" à eu le jeton en premier")
+                    print(str(msg.getSender())+" à eu le jeton en premier", flush=True)
                 self.com.releaseSC()
                 
 
             loop+=1
-        print(self.getName() + " stopped")
+        print(self.getName() + " stopped", flush=True)
 
     def stop(self):
         self.alive = False
