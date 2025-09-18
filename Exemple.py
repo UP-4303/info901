@@ -43,7 +43,7 @@ class Process(Thread):
             self.com.requestSC()
             if self.com.mailbox.isEmpty():
                 print("Catched !", flush=True)
-                self.com.broadcast("J'ai gagné !!!")
+                self.com.ackNeededBroadcast("J'ai gagné !!!")
             else:
                 msg = self.com.mailbox.getMessage()
                 print(str(msg.getSender())+" à eu le jeton en premier", flush=True)
@@ -64,7 +64,7 @@ class Process(Thread):
             self.com.requestSC()
             if self.com.mailbox.isEmpty():
                 print("Catched !", flush=True)
-                self.com.broadcast("J'ai gagné !!!")
+                self.com.ackNeededBroadcast("J'ai gagné !!!")
             else:
                 msg = self.com.mailbox.getMessage()
                 print(str(msg.getSender())+" à eu le jeton en premier", flush=True)
@@ -81,7 +81,7 @@ class Process(Thread):
             self.com.requestSC()
             if self.com.mailbox.isEmpty():
                 print("Catched !", flush=True)
-                self.com.broadcast("J'ai gagné !!!")
+                self.com.ackNeededBroadcast("J'ai gagné !!!")
             else:
                 msg = self.com.mailbox.getMessage()
                 print(str(msg.getSender())+" à eu le jeton en premier", flush=True)
