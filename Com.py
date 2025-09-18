@@ -106,7 +106,6 @@ class Com:
 
     def synchronize(self):
         print("Process "+str(self.id)+" is synchronizing", flush=True)
-        self.joiningIds = set()
         PyBus.Instance().post(JoinMessage(self.id))
         self.joinEvent.wait()
         self.joinEvent.clear()
@@ -117,6 +116,7 @@ class Com:
     def onJoinRecieve(self, message: JoinMessage):
         print("Process "+str(self.id)+" received join from "+str(message.sender), flush=True)
         self.joiningIds.add(message.sender)
+        print("Process "+str(self.id)+" currently joined with "+str(len(self.joiningIds))+"/"+str(self.nbProcess), flush=True)
         if len(self.joiningIds) == self.nbProcess:
             self.joinEvent.set()
 

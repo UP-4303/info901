@@ -26,6 +26,8 @@ class Process(Thread):
 
     def run(self):
         self.init()
+
+        print(self.getName() + " started with id "+str(self.myId)+" among "+str(self.nbProcess)+" process(es)", flush=True)
         
         loop = 0
         while self.alive:
