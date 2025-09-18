@@ -91,9 +91,9 @@ class Com:
         PyBus.Instance().post(Message(self.id, destId, message, self.clock.clock))
 
     def sendToSync(self, message: any, destId: int):
-        PyBus.Instance().post(SyncMessage(self.id, destId, message, self.clock.clock))
         with self.waitingForAckLock:
             self.waitingForAck = 1
+        PyBus.Instance().post(SyncMessage(self.id, destId, message, self.clock.clock))
         self.ackEvent.wait()
         self.ackEvent.clear()
 
@@ -168,15 +168,15 @@ class Com:
     def ackNeededBroadcast(self, message: any):
         self.clock.inc_clock()
         print(f'{self.id} broadcasting "{message}" asking for ACK with clock {self.clock.clock}', flush=True)
-        PyBus.Instance().post(Message(self.id, None, message, self.clock.clock, ackNeeded=True))
         with self.waitingForAckLock:
             self.waitingForAck = self.nbProcess
+        PyBus.Instance().post(Message(self.id, None, message, self.clock.clock, ackNeeded=True))
         self.ackEvent.wait()
         self.ackEvent.clear()
 
     @subscribe(threadMode= Mode.PARALLEL, onEvent=Message)
     def onReceive(self, message: Message):
-        if message.recipient != self.id or message.isSystem or not self.alive:
+        if (message.recipient != self.id and message.recipient != None) or message.isSystem or not self.alive:
             return
         self.clock.sync(message.clock)
         print(f'{self.id} receiving "{message.content}" from {message.sender} with clock {self.clock.clock}', flush=True)
