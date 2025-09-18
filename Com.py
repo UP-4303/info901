@@ -25,6 +25,9 @@ class Com:
         self.nbProcess: None | int = None
 
         self.ackEvent: Event = Event()
+        self.waitingForAck: int = 0
+        self.waitingForAckLock: Lock = Lock()
+
         self.syncEvent: Event = Event()
         self.syncMessage: SyncMessage | None = None
 
@@ -85,7 +88,9 @@ class Com:
         PyBus.Instance().post(Message(self.id, destId, message, self.clock.clock))
 
     def sendToSync(self, message: any, destId: int):
-        PyBus.Instance().post(SyncMessage(self.id, destId, message))
+        PyBus.Instance().post(SyncMessage(self.id, destId, message, self.clock.clock))
+        with self.waitingForAckLock:
+            self.waitingForAck = 1
         self.ackEvent.wait()
         self.ackEvent.clear()
 
@@ -100,7 +105,10 @@ class Com:
     @subscribe(threadMode= Mode.PARALLEL, onEvent=AckMessage)
     def onAckReceive(self, message: AckMessage):
         if message.recipient == self.id and self.alive:
-            self.ackEvent.set()
+            with self.waitingForAckLock:
+                self.waitingForAck -= 1
+                if self.waitingForAck == 0:
+                    self.ackEvent.set()
     
     @subscribe(threadMode= Mode.PARALLEL, onEvent=SyncMessage)
     def onSyncReceive(self, message: SyncMessage):
@@ -150,6 +158,15 @@ class Com:
         self.clock.inc_clock()
         print(f'{self.id} broadcasting "{message}" with clock {self.clock.clock}', flush=True)
         PyBus.Instance().post(Message(self.id, None, message, self.clock.clock))
+    
+    def ackNeededBroadcast(self, message: any):
+        self.clock.inc_clock()
+        print(f'{self.id} broadcasting "{message}" asking for ACK with clock {self.clock.clock}', flush=True)
+        PyBus.Instance().post(Message(self.id, None, message, self.clock.clock, ackNeeded=True))
+        with self.waitingForAckLock:
+            self.waitingForAck = self.nbProcess
+        self.ackEvent.wait()
+        self.ackEvent.clear()
 
     @subscribe(threadMode= Mode.PARALLEL, onEvent=Message)
     def onReceive(self, message: Message):
@@ -158,3 +175,6 @@ class Com:
         self.clock.sync(message.clock)
         print(f'{self.id} receiving "{message.content}" from {message.sender} with clock {self.clock.clock}', flush=True)
         self.mailbox.addMessage(message)
+        if message.ackNeeded:
+            print(f'{self.id} sending ACK to {message.sender} with clock {self.clock.clock}', flush=True)
+            PyBus.Instance().post(AckMessage(self.id, message.sender))

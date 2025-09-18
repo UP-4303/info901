@@ -1,10 +1,11 @@
 class Message:
-    def __init__(self, sender: int, recipient: int, content: any, clock: int, isSystem=False):
+    def __init__(self, sender: int, recipient: int, content: any, clock: int, isSystem=False, ackNeeded=False):
         self.sender = sender
         self.recipient = recipient
         self.content = content
         self.isSystem = isSystem
         self.clock = clock
+        self.ackNeeded = ackNeeded
 
     def getSender(self) -> int:
         return self.sender
@@ -22,7 +23,7 @@ class AckMessage(Message):
 
 class SyncMessage(Message):
     def __init__(self, sender: int, recipient: int, content: any):
-        super(SyncMessage, self).__init__(sender, recipient, content, 0, True)
+        super(SyncMessage, self).__init__(sender, recipient, content, 0, True, True)
 
 class TokenMessage(Message):
     def __init__(self, sender: int, recipient: int):
@@ -31,4 +32,3 @@ class TokenMessage(Message):
 class JoinMessage(Message):
     def __init__(self, sender: int):
         super(JoinMessage, self).__init__(sender, None, None, 0, True)
-
