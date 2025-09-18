@@ -27,3 +27,8 @@ class SyncMessage(Message):
 class TokenMessage(Message):
     def __init__(self, sender: int, recipient: int):
         super(TokenMessage, self).__init__(sender, recipient, None, 0, True)
+
+class JoinMessage(Message):
+    def __init__(self, sender: int):
+        super(JoinMessage, self).__init__(sender, None, None, 0, True)
+
