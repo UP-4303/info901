@@ -78,16 +78,13 @@ class Com:
         PyBus.Instance().post(Message(self.id, destId, message, self.clock.clock))
 
     def sendToSync(self, message: any, destId: int):
-        print("Process "+str(self.id)+" sending sync message to "+str(destId)+" : "+str(message), flush=True)
         PyBus.Instance().post(SyncMessage(self.id, destId, message))
-        print("Process "+str(self.id)+" waiting for ack from "+str(destId), flush=True)
         self.ackEvent.wait()
         self.ackEvent.clear()
 
     def recevFromSync(self, srcId: int) -> Message:
         self.syncEvent.wait()
         self.syncEvent.clear()
-        print("Process "+str(self.id)+" received sync message from "+str(srcId)+" sending Ack", flush=True)
         PyBus.Instance().post(AckMessage(self.id, srcId))
         msg = self.syncMessage
         self.syncMessage = None
