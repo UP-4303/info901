@@ -7,7 +7,7 @@ from threading import Lock, Event
 from random import randint
 
 from Mailbox import Mailbox
-from Message import Message, AutoIdMessage, AckMessage, SyncMessage
+from Message import Message, AutoIdMessage, AckMessage, SyncMessage, TokenMessage
 from LamportClock import LamportClock
 
 class Com:
@@ -28,7 +28,11 @@ class Com:
         self.syncEvent: Event = Event()
         self.syncMessage: SyncMessage | None = None
 
+        self.tokenEvent: Event = Event()
+        self.waitingForToken: bool = False
+
         self.autoId()
+        self.startToken()
 
     @subscribe(threadMode= Mode.PARALLEL, onEvent=AutoIdMessage)
     def onAutoIdReceive(self, message: AutoIdMessage):
@@ -41,7 +45,7 @@ class Com:
         while True:
             if myNumber == None:
                 myNumber = randint(0, Com.maxRand)
-                PyBus.Instance().post(AutoIdMessage(None, None, myNumber, self.clock.clock))
+                PyBus.Instance().post(AutoIdMessage(None, None, myNumber))
             sleep(Com.timeout)
             
             duplicate = [item for item, count in collections.Counter(self.receivedNumbers).items() if count > 1]
@@ -57,6 +61,11 @@ class Com:
         self.nbProcess = len(self.receivedNumbers)
         return
     
+    def startToken(self) -> None:
+        if self.id == self.nbProcess - 1:
+            sleep(Com.timeout)
+            PyBus.Instance().post(TokenMessage(self.id, 0))
+
     def getNbProcess(self) -> int:
         return self.nbProcess
 
@@ -70,18 +79,16 @@ class Com:
 
     def sendToSync(self, message: any, destId: int):
         print("Process "+str(self.id)+" sending sync message to "+str(destId)+" : "+str(message), flush=True)
-        PyBus.Instance().post(SyncMessage(self.id, destId, message, self.clock.clock))
+        PyBus.Instance().post(SyncMessage(self.id, destId, message))
         print("Process "+str(self.id)+" waiting for ack from "+str(destId), flush=True)
         self.ackEvent.wait()
         self.ackEvent.clear()
-        print("Process "+str(self.id)+" received ack from "+str(destId), flush=True)
 
     def recevFromSync(self, srcId: int) -> Message:
-        print("Process "+str(self.id)+" waiting for sync message from "+str(srcId), flush=True)
         self.syncEvent.wait()
         self.syncEvent.clear()
         print("Process "+str(self.id)+" received sync message from "+str(srcId)+" sending Ack", flush=True)
-        PyBus.Instance().post(AckMessage(self.id, srcId, self.clock.clock))
+        PyBus.Instance().post(AckMessage(self.id, srcId))
         msg = self.syncMessage
         self.syncMessage = None
         return msg
@@ -101,10 +108,21 @@ class Com:
         pass
 
     def requestSC(self):
-        pass
+        self.waitingForToken = True
+        self.tokenEvent.wait()
+        self.tokenEvent.clear()
 
     def releaseSC(self):
-        pass
+        PyBus.Instance().post(TokenMessage(self.id, (self.id + 1) % self.nbProcess))
+
+    @subscribe(threadMode= Mode.PARALLEL, onEvent=TokenMessage)
+    def onAutoIdReceive(self, message: TokenMessage):
+        if message.recipient == self.id:
+            if self.waitingForToken:
+                self.waitingForToken = False
+                self.tokenEvent.set()
+            else:
+                PyBus.Instance().post(TokenMessage(self.id, (self.id + 1) % self.nbProcess))
 
     def broadcast(self, message: any):
         self.clock.tick()

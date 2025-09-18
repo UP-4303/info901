@@ -37,6 +37,7 @@ class Process(Thread):
                 
                 self.com.sendToSync("J'ai laissé un message à 1, je le rappellerai après, on se sychronise tous et on attaque la partie ?", 2)
                 msg = self.com.recevFromSync(2)
+                print("<0> Reçu de 2 : "+str(msg.getContent()))
                
                 self.com.sendToSync("2 est OK pour jouer, on se synchronise et c'est parti!",1)
                     
@@ -55,6 +56,7 @@ class Process(Thread):
             if self.myId == 1:
                 if not self.com.mailbox.isEmpty():
                     msg = self.com.recevFromSync(0)
+                    print("<1> Reçu de 0 : "+str(msg.getContent()))
 
                     self.com.synchronize()
                     
@@ -69,6 +71,7 @@ class Process(Thread):
                     
             if self.myId == 2:
                 msg = self.com.recevFromSync(0)
+                print("<2> Reçu de 0 : "+str(msg.getContent()))
 
                 self.com.sendToSync("OK", 0)
 
@@ -82,7 +85,6 @@ class Process(Thread):
                     msg = self.com.mailbox.getMessage()
                     print(str(msg.getSender())+" à eu le jeton en premier", flush=True)
                 self.com.releaseSC()
-                
 
             loop+=1
         print(self.getName() + " stopped", flush=True)
