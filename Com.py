@@ -1,3 +1,4 @@
+from __future__ import annotations
 import collections
 from time import sleep
 from pyeventbus3.pyeventbus3 import *
@@ -15,12 +16,15 @@ class Com:
     timeout = 1
     maxRand = 100
 
-    def __init__(self):
+    def __init__(self, name: str):
         self.mailbox = Mailbox()
         self.clock = LamportClock()
         PyBus.Instance().register(self, self)
 
-        self.receivedNumbers = []
+        self.name = name
+        self.agenda = dict[str, int]()
+
+        self.receivedNumbers: list[tuple[int, str]] = []
         self.mutex = Lock()
         self.id: None | int = None
         self.nbProcess: None | int = None
@@ -57,27 +61,35 @@ class Com:
 
     def autoId(self) -> None:
         self.alive.set()
-
-        sleep(Com.timeout)
+        
         myNumber = None
+        sleep(Com.timeout)
         while True:
             if myNumber == None:
                 myNumber = randint(0, Com.maxRand)
-                PyBus.Instance().post(AutoIdMessage(None, None, myNumber))
+                PyBus.Instance().post(AutoIdMessage([myNumber, self.name]))
             sleep(Com.timeout)
             
-            duplicate = [item for item, count in collections.Counter(self.receivedNumbers).items() if count > 1]
+            with self.mutex:
+                numbers = [item[0] for item in self.receivedNumbers]
+            duplicate = [num for num, count in collections.Counter(numbers).items() if count > 1]
             if len(duplicate) > 0:
-                self.receivedNumbers = [item for item in self.receivedNumbers if not item in duplicate]
+                with self.mutex:
+                    self.receivedNumbers = [item for item in self.receivedNumbers if not item[0] in duplicate]
                 if myNumber in duplicate:
                     myNumber = None
             else:
                 break
 
-        self.receivedNumbers.sort()
-        self.id = self.receivedNumbers.index(myNumber)
-        self.nbProcess = len(self.receivedNumbers)
-        return
+        with self.mutex:
+            self.receivedNumbers.sort()
+            for i, item in enumerate(self.receivedNumbers):
+                self.agenda[item[1]] = i
+                if item[0] == myNumber and item[1] == self.name:
+                    self.id = i
+
+            print(f"<{self.name}:{self.id}> agenda: {self.agenda}", flush=True)
+            self.nbProcess = len(self.receivedNumbers)
     
     def startToken(self) -> None:
         if self.id == self.nbProcess - 1:
@@ -87,25 +99,22 @@ class Com:
     def getNbProcess(self) -> int:
         return self.nbProcess
 
-    def getMyId(self) -> int:
-        return self.id
-
-    def sendTo(self, message: any, destId: int):
+    def sendTo(self, message: any, dest: str):
         self.clock.inc_clock()
-        print(f'<{self.id}> sending "{message}" to {destId} with clock {self.clock.clock}', flush=True)
-        PyBus.Instance().post(Message(self.id, destId, message, self.clock.clock))
+        print(f'<{self.name}:{self.id}> sending "{message}" to <{dest}:{self.agenda[dest]}> with clock {self.clock.clock}', flush=True)
+        PyBus.Instance().post(Message(self.id, self.agenda[dest], message, self.clock.clock))
 
-    def sendToSync(self, message: any, destId: int):
+    def sendToSync(self, message: any, dest: str):
         with self.waitingForAckLock:
             self.waitingForAck = 1
-        PyBus.Instance().post(SyncMessage(self.id, destId, message, self.clock.clock))
+        PyBus.Instance().post(SyncMessage(self.id, self.agenda[dest], message, self.clock.clock))
         self.ackEvent.wait()
         self.ackEvent.clear()
 
-    def recevFromSync(self, srcId: int) -> Message:
+    def recevFromSync(self, src: str) -> Message:
         self.syncEvent.wait()
         self.syncEvent.clear()
-        PyBus.Instance().post(AckMessage(self.id, srcId))
+        PyBus.Instance().post(AckMessage(self.id, self.agenda[src]))
         msg = self.syncMessage
         self.clock.sync(msg.clock)
         self.syncMessage = None
@@ -138,12 +147,12 @@ class Com:
         self.syncMessage = message
 
     def synchronize(self):
-        print(f"<{self.id}> is synchronizing", flush=True)
+        print(f"<{self.name}:{self.id}> is synchronizing", flush=True)
         PyBus.Instance().post(JoinMessage(self.id))
         self.joinEvent.wait()
         self.joinEvent.clear()
         self.joiningIds.clear()
-        print(f"<{self.id}> synchronized with {self.nbProcess - 1} others", flush=True)
+        print(f"<{self.name}:{self.id}> synchronized with {self.nbProcess - 1} others", flush=True)
 
     @subscribe(threadMode= Mode.PARALLEL, onEvent=JoinMessage)
     def onJoinRecieve(self, message: JoinMessage):
@@ -152,20 +161,20 @@ class Com:
         self.initializedEvent.wait()
 
         self.joiningIds.add(message.sender)
-        print(f"<{self.id}> received join from {message.sender}, currently at {len(self.joiningIds)}/{self.nbProcess}", flush=True)
+        print(f"<{self.name}:{self.id}> received join from {message.sender}, currently at {len(self.joiningIds)}/{self.nbProcess}", flush=True)
         if len(self.joiningIds) == self.nbProcess:
             self.joinEvent.set()
 
     def requestSC(self):
-        print(f"<{self.id}> is requesting critical section", flush=True)
+        print(f"<{self.name}:{self.id}> is requesting critical section", flush=True)
         self.waitingForToken = True
         self.releaseTokenEvent.clear()
         self.requestTokenEvent.wait()
         self.requestTokenEvent.clear()
-        print(f"<{self.id}> got the token", flush=True)
+        print(f"<{self.name}:{self.id}> got the token", flush=True)
 
     def releaseSC(self):
-        print(f"<{self.id}> is releasing critical section", flush=True)
+        print(f"<{self.name}:{self.id}> is releasing critical section", flush=True)
         self.releaseTokenEvent.set()
 
     @subscribe(threadMode= Mode.PARALLEL, onEvent=TokenMessage)
@@ -191,12 +200,12 @@ class Com:
 
     def broadcast(self, message: any):
         self.clock.inc_clock()
-        print(f'<{self.id}> broadcasting "{message}" with clock {self.clock.clock}', flush=True)
+        print(f'<{self.name}:{self.id}> broadcasting "{message}" with clock {self.clock.clock}', flush=True)
         PyBus.Instance().post(Message(self.id, None, message, self.clock.clock))
     
     def ackNeededBroadcast(self, message: any):
         self.clock.inc_clock()
-        print(f'<{self.id}> broadcasting "{message}" asking for ACK with clock {self.clock.clock}', flush=True)
+        print(f'<{self.name}:{self.id}> broadcasting "{message}" asking for ACK with clock {self.clock.clock}', flush=True)
         with self.waitingForAckLock:
             self.waitingForAck = self.nbProcess
         PyBus.Instance().post(Message(self.id, None, message, self.clock.clock, ackNeeded=True))
@@ -214,8 +223,8 @@ class Com:
             return
         
         self.clock.sync(message.clock)
-        print(f'<{self.id}> receiving "{message.content}" from {message.sender} with clock {self.clock.clock}', flush=True)
+        print(f'<{self.name}:{self.id}> receiving "{message.content}" from {message.sender} with clock {self.clock.clock}', flush=True)
         self.mailbox.addMessage(message)
         if message.ackNeeded:
-            print(f'<{self.id}> sending ACK to {message.sender}', flush=True)
+            print(f'<{self.name}:{self.id}> sending ACK to {message.sender}', flush=True)
             PyBus.Instance().post(AckMessage(self.id, message.sender))
