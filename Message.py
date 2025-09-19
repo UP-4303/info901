@@ -1,3 +1,5 @@
+from random import randint
+
 class Message:
     def __init__(self, sender: int, recipient: int, content: any, clock: int, isSystem=False, ackNeeded=False):
         self.sender = sender
@@ -27,8 +29,12 @@ class SyncMessage(Message):
 
 class TokenMessage(Message):
     def __init__(self, sender: int, recipient: int):
-        super(TokenMessage, self).__init__(sender, recipient, None, 0, True)
+        super(TokenMessage, self).__init__(sender, recipient, randint(0,100), 0, True)
 
 class JoinMessage(Message):
     def __init__(self, sender: int):
         super(JoinMessage, self).__init__(sender, None, None, 0, True)
+
+class HeartbitMessage(Message):
+    def __init__(self, sender: int):
+        super(HeartbitMessage).__init__(sender, None, None, 0, True)
