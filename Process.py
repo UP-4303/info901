@@ -104,9 +104,9 @@ class Process(Thread):
                 print(f"@P2 - {msg.getSender()} à eu le jeton en premier", flush=True)
             self.com.releaseSC()
 
-        print(f"@{self.name} - execution finished with id {self.com.id}", flush=True)
 
         self.stop()
+        print(f"@{self.name} - execution finished with id {self.com.id}", flush=True)
 
     def stop(self):
         """Arrête le processus et son communicateur."""

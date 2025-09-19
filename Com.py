@@ -53,6 +53,8 @@ class Com:
         initializedEvent (Event): Événement indiquant si le processus est initialisé.
         reorgEvent (Event): Événement indiquant si une réorganisation est attendue ou en cours.
         killEvent (Event): Événement pour arrêter les tâches de fond.
+        sendHeartbitTask (LoopTask): Tâche de fond pour l'envoi périodique des heartbeats.
+        checkHeartbitTask (LoopTask): Tâche de fond pour la vérification périodique des heartbeats.
     """
     timeout = 1
     maxRand = 100
@@ -104,8 +106,8 @@ class Com:
         self.initializedEvent.set()
 
         self.killEvent = Event()
-        LoopTask(Com.sendHeartbitEvery, self.sendHeartbit, (), self.killEvent)
-        LoopTask(Com.checkHeartbitEvery, self.checkHearbits, (), self.killEvent)
+        self.sendHeartbitTask = LoopTask(Com.sendHeartbitEvery, self.sendHeartbit, (), self.killEvent)
+        self.chackHeartbitTask = LoopTask(Com.checkHeartbitEvery, self.checkHearbits, (), self.killEvent)
     
     def stop(self):
         """
@@ -113,6 +115,8 @@ class Com:
         """
         self.alive.clear()
         self.killEvent.set()
+        self.sendHeartbitTask.join()
+        self.chackHeartbitTask.join()
 
     @subscribe(threadMode= Mode.PARALLEL, onEvent=AutoIdMessage)
     def onAutoIdReceive(self, message: AutoIdMessage):
