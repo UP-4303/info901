@@ -25,7 +25,7 @@ class Process(Thread):
     def run(self):
         self.init()
 
-        print(f"<{self.name}> started with id {self.com.id} among {self.nbProcess} process(es)", flush=True)
+        print(f"@{self.name} - started with id {self.com.id} among {self.nbProcess} process(es)", flush=True)
         
         if self.name == "P0":
             self.com.sendTo("j'appelle P2 et je te recontacte après", "P1")
