@@ -38,3 +38,7 @@ class JoinMessage(Message):
 class HeartbitMessage(Message):
     def __init__(self, sender: int):
         super(HeartbitMessage,self).__init__(sender, None, None, 0, True)
+
+class ReorgMessage(Message):
+    def __init__(self, sender: int, fails: list[int]):
+        super(ReorgMessage,self).__init__(sender, None, fails, 0, True)
