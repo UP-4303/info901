@@ -110,11 +110,19 @@ class Com:
         return self.nbProcess
 
     def sendTo(self, message: any, dest: str):
+        if dest not in self.nameTable:
+            print(f"<{self.name}:{self.id}> ERROR: destination {dest} unknown", flush=True)
+            return
+
         self.clock.inc_clock()
         print(f'<{self.name}:{self.id}> sending "{message}" to <{dest}:{self.nameTable[dest]}> with clock {self.clock.clock}', flush=True)
         PyBus.Instance().post(Message(self.id, self.nameTable[dest], message, self.clock.clock))
 
     def sendToSync(self, message: any, dest: str):
+        if dest not in self.nameTable:
+            print(f"<{self.name}:{self.id}> ERROR: destination {dest} unknown", flush=True)
+            return
+
         with self.waitingForAckLock:
             self.waitingForAck = 1
         PyBus.Instance().post(SyncMessage(self.id, self.nameTable[dest], message, self.clock.clock))
@@ -122,6 +130,10 @@ class Com:
         self.ackEvent.clear()
 
     def recevFromSync(self, src: str) -> Message:
+        if src not in self.nameTable:
+            print(f"<{self.name}:{self.id}> ERROR: source {src} unknown", flush=True)
+            return None
+
         self.syncEvent.wait()
         self.syncEvent.clear()
         PyBus.Instance().post(AckMessage(self.id, self.nameTable[src]))
