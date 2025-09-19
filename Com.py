@@ -15,6 +15,8 @@ from LoopTask import LoopTask
 class Com:
     timeout = 1
     maxRand = 100
+    sendHeartbitEvery = 1
+    checkHeartbitEvery = 5
 
     def __init__(self, name: str):
         self.mailbox = Mailbox()
@@ -55,8 +57,8 @@ class Com:
         self.initializedEvent.set()
 
         self.killEvent = Event()
-        LoopTask(1, self.sendHeartbit, (), self.killEvent)
-        LoopTask(5, self.checkHearbits, (), self.killEvent)
+        LoopTask(Com.sendHeartbitEvery, self.sendHeartbit, (), self.killEvent)
+        LoopTask(Com.checkHeartbitEvery, self.checkHearbits, (), self.killEvent)
     
     def stop(self):
         self.alive.clear()
@@ -226,7 +228,14 @@ class Com:
         self.ackEvent.clear()
 
     def checkHearbits(self):
-        with self.heartbitMutex
+        with self.heartbitMutex:
+
+            for id, lastTime in list(self.heartbitTable.items()):
+                if time.time() - lastTime > Com.checkHeartbitEvery:
+                    print(f"<{self.name}:{self.id}> detected failure of process {id}", flush=True)
+                    self.nbProcess -= 1
+                    del self.heartbitTable[id]
+                    self.nameTable[list(self.nameTable.keys())[list(self.nameTable.values()).index(id)]] = None
 
     @subscribe(threadMode= Mode.PARALLEL, onEvent=Message)
     def onReceive(self, message: Message):
