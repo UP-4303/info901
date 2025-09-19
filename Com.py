@@ -17,9 +17,42 @@ class Com:
     Com permet de gérer la communication entre processus, elle inclue l'envoie et la réception des messages synchrone et asynchrone via une boite aux lettres,
     la gestion des tokens, l'attente de barrière, des heartbeats et de la réorganisation dans un système distribué.
 
+    Class Attributes:
+        timeout (int |float): Temps d'attente en secondes pour la génération d'ID.
+        maxRand (int): Valeur maximale pour la génération aléatoire des numéros d'ID.
+        sendHeartbitEvery (int |float): Intervalle en secondes pour l'envoi des heartbeats.
+        checkHeartbitEvery (int |float): Intervalle en secondes pour la vérification des heartbeats.
+
     Args:
         name (str): Le nom du processus.
-            /!\ utiliser un nom unique pour chaque processus /!\\
+            /!\\ Il est de la responsabilité des utilisateurs de donner un nom unique pour chaque processus /!\\
+            
+    Attributs:
+        mailbox (Mailbox): La boîte aux lettres du processus pour stocker les messages reçus.
+        clock (LamportClock): L'horloge de Lamport pour la gestion des horloges logiques. Est ignorée sur les messages système, à l'envoi comme à la réception.
+        name (str): Le nom du processus.
+        nameTable (dict[str, int]): Table de correspondance entre les noms des processus et leurs IDs.
+        heartbitMutex (Lock): Mutex protégeant l'accès à la table des heartbeats.
+        heartbitTable (dict[int, float]): Table des derniers timestamps de réception des heartbeats.
+        receivedNumbers (list[tuple[int, str]]): Liste des numéros reçus pour la génération d'ID. Utilisée uniquement pour la génération des IDs à l'initialisation.
+        receivedNumbersMutex (Lock): Mutex pour protéger l'accès à receivedNumbers.
+        id (int | None): L'ID unique du processus.
+        nbProcess (int | None): Le nombre total de processus dans le système.
+        ackEvent (Event): Événement pour la gestion des ACK.
+        waitingForAck (int): Compteur du nombre d'ACK en attente.
+        waitingForAckLock (Lock): Mutex pour protéger l'accès à waitingForAck.
+        syncEvent (Event): Événement pour la gestion des messages synchronisés.
+        receiveLock (Lock): Mutex pour protéger la réception des messages synchronisés.
+        syncMessage (SyncMessage | None): Le message synchronisé reçu.
+        requestTokenEvent (Event): Événement pour la réception lors de l'attente de token.
+        releaseTokenEvent (Event): Événement pour la libération du token.
+        waitingForToken (bool): Indique si le processus attend le token.
+        joinEvent (Event): Événement pour la gestion des barrières de synchronisation.
+        joiningIds (set): Ensemble des IDs des processus ayant rejoint la barrière.
+        alive (Event): Événement indiquant si le processus est actif.
+        initializedEvent (Event): Événement indiquant si le processus est initialisé.
+        reorgEvent (Event): Événement indiquant si une réorganisation est attendue ou en cours.
+        killEvent (Event): Événement pour arrêter les tâches de fond.
     """
     timeout = 1
     maxRand = 100
@@ -41,7 +74,7 @@ class Com:
         self.heartbitTable = dict[int, float]()
 
         self.receivedNumbers: list[tuple[int, str]] = []
-        self.mutex = Lock()
+        self.receivedNumbersMutex = Lock()
         self.id: None | int = None
         self.nbProcess: None | int = None
 
@@ -87,7 +120,7 @@ class Com:
         Handler pour la réception d'un message système de génération d'ID.
         Ajoute le numéro reçu à la liste des numéros reçus.
         """
-        with self.mutex:
+        with self.receivedNumbersMutex:
             self.receivedNumbers.append(message.content)
 
     def autoId(self) -> None:
@@ -104,18 +137,18 @@ class Com:
                 PyBus.Instance().post(AutoIdMessage([myNumber, self.name]))
             sleep(Com.timeout)
             
-            with self.mutex:
+            with self.receivedNumbersMutex:
                 numbers = [item[0] for item in self.receivedNumbers]
             duplicate = [num for num, count in collections.Counter(numbers).items() if count > 1]
             if len(duplicate) > 0:
-                with self.mutex:
+                with self.receivedNumbersMutex:
                     self.receivedNumbers = [item for item in self.receivedNumbers if not item[0] in duplicate]
                 if myNumber in duplicate:
                     myNumber = None
             else:
                 break
 
-        with self.mutex:
+        with self.receivedNumbersMutex:
             self.receivedNumbers.sort()
             for i, item in enumerate(self.receivedNumbers):
                 self.nameTable[item[1]] = i
