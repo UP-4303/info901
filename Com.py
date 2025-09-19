@@ -374,10 +374,14 @@ class Com:
                     fails.append(id)
             if len(fails) > 0:
                 print(f"<{self.name}:{self.id}> detected failure of process {fails}", flush=True)
-                del self.heartbitTable[id]
-                # self.nbProcess -= 1
-                # self.nameTable[list(self.nameTable.keys())[list(self.nameTable.values()).index(id)]] = None
-                PyBus.Instance().post(ReorgMessage(self.id, fails))
+                for id in fails:
+                    del self.heartbitTable[id]
+                    # n = list(self.nameTable.keys())[list(self.nameTable.values()).index(id)]
+                    # self.nbProcess -= 1
+                    # self.nameTable[n] = None
+
+                    # ### will block all operations until reorg is done
+                    # PyBus.Instance().post(ReorgMessage(self.id, fails))
     
     @subscribe(threadMode= Mode.PARALLEL, onEvent= ReorgMessage)
     def receiveReorg(self, message: ReorgMessage):
