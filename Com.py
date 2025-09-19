@@ -8,7 +8,7 @@ from threading import Lock, Event
 from random import randint
 
 from Mailbox import Mailbox
-from Message import Message, AutoIdMessage, AckMessage, SyncMessage, TokenMessage, JoinMessage, HeartbitMessage
+from Message import Message, AutoIdMessage, AckMessage, SyncMessage, TokenMessage, JoinMessage, HeartbitMessage, ReorgMessage
 from LamportClock import LamportClock
 from LoopTask import LoopTask
 
@@ -51,6 +51,8 @@ class Com:
 
         self.alive: Event = Event()
         self.initializedEvent: Event = Event()
+        self.reorgEvent: Event = Event()
+        self.reorgEvent.set()
 
         self.autoId()
         self.startToken()
@@ -110,6 +112,7 @@ class Com:
         return self.nbProcess
 
     def sendTo(self, message: any, dest: str):
+        self.reorgEvent.wait()
         if dest not in self.nameTable:
             print(f"<{self.name}:{self.id}> ERROR: destination {dest} unknown", flush=True)
             return
@@ -119,6 +122,7 @@ class Com:
         PyBus.Instance().post(Message(self.id, self.nameTable[dest], message, self.clock.clock))
 
     def sendToSync(self, message: any, dest: str):
+        self.reorgEvent.wait()
         if dest not in self.nameTable:
             print(f"<{self.name}:{self.id}> ERROR: destination {dest} unknown", flush=True)
             return
@@ -130,6 +134,7 @@ class Com:
         self.ackEvent.clear()
 
     def recevFromSync(self, src: str) -> Message:
+        self.reorgEvent.wait()
         if src not in self.nameTable:
             print(f"<{self.name}:{self.id}> ERROR: source {src} unknown", flush=True)
             return None
@@ -145,6 +150,7 @@ class Com:
     
     @subscribe(threadMode= Mode.PARALLEL, onEvent=AckMessage)
     def onAckReceive(self, message: AckMessage):
+        self.reorgEvent.wait()
         if not self.alive.is_set():
             return
         self.initializedEvent.wait()
@@ -158,6 +164,7 @@ class Com:
     
     @subscribe(threadMode= Mode.PARALLEL, onEvent=SyncMessage)
     def onSyncReceive(self, message: SyncMessage):
+        self.reorgEvent.wait()
         if not self.alive.is_set():
             return
         self.initializedEvent.wait()
@@ -169,6 +176,7 @@ class Com:
         self.syncMessage = message
 
     def synchronize(self):
+        self.reorgEvent.wait()
         print(f"<{self.name}:{self.id}> is synchronizing", flush=True)
         PyBus.Instance().post(JoinMessage(self.id))
         self.joinEvent.wait()
@@ -178,6 +186,7 @@ class Com:
 
     @subscribe(threadMode= Mode.PARALLEL, onEvent=JoinMessage)
     def onJoinRecieve(self, message: JoinMessage):
+        self.reorgEvent.wait()
         if not self.alive.is_set():
             return
         self.initializedEvent.wait()
@@ -188,6 +197,7 @@ class Com:
             self.joinEvent.set()
 
     def requestSC(self):
+        self.reorgEvent.wait()
         print(f"<{self.name}:{self.id}> is requesting critical section", flush=True)
         self.waitingForToken = True
         self.releaseTokenEvent.clear()
@@ -196,11 +206,13 @@ class Com:
         print(f"<{self.name}:{self.id}> got the token", flush=True)
 
     def releaseSC(self):
+        self.reorgEvent.wait()
         print(f"<{self.name}:{self.id}> is releasing critical section", flush=True)
         self.releaseTokenEvent.set()
 
     @subscribe(threadMode= Mode.PARALLEL, onEvent=TokenMessage)
     def onTokenReceive(self, message: TokenMessage):
+        self.reorgEvent.wait()
         if not self.alive.is_set():
             return
         self.initializedEvent.wait()
@@ -222,15 +234,18 @@ class Com:
             return
         self.initializedEvent.wait()
 
+        t = time.time()
         with self.heartbitMutex:
             self.heartbitTable[message.sender] = time.time()
 
     def broadcast(self, message: any):
+        self.reorgEvent.wait()
         self.clock.inc_clock()
         print(f'<{self.name}:{self.id}> broadcasting "{message}" with clock {self.clock.clock}', flush=True)
         PyBus.Instance().post(Message(self.id, None, message, self.clock.clock))
     
     def ackNeededBroadcast(self, message: any):
+        self.reorgEvent.wait()
         self.clock.inc_clock()
         print(f'<{self.name}:{self.id}> broadcasting "{message}" asking for ACK with clock {self.clock.clock}', flush=True)
         with self.waitingForAckLock:
@@ -241,16 +256,30 @@ class Com:
 
     def checkHearbits(self):
         with self.heartbitMutex:
-
+            fails = []
             for id, lastTime in list(self.heartbitTable.items()):
+                # print(f"<{self.name}:{self.id}> last heartbit from {id} {time.time() - lastTime} ago", flush=True)
                 if time.time() - lastTime > Com.checkHeartbitEvery:
-                    print(f"<{self.name}:{self.id}> detected failure of process {id}", flush=True)
-                    self.nbProcess -= 1
-                    del self.heartbitTable[id]
-                    self.nameTable[list(self.nameTable.keys())[list(self.nameTable.values()).index(id)]] = None
+                    fails.append(id)
+            if len(fails) > 0:
+                print(f"<{self.name}:{self.id}> detected failure of process {fails}", flush=True)
+                del self.heartbitTable[id]
+                # self.nbProcess -= 1
+                # self.nameTable[list(self.nameTable.keys())[list(self.nameTable.values()).index(id)]] = None
+                PyBus.Instance().post(ReorgMessage(self.id, fails))
+    
+    @subscribe(threadMode= Mode.PARALLEL, onEvent= ReorgMessage)
+    def receiveReorg(self, message: ReorgMessage):
+        if not self.alive.is_set():
+            return
+        self.initializedEvent.wait()
+
+        self.reorgEvent.clear()
+        print(f"<{self.name}:{self.id}> received reorganization message, fails: {message.content}", flush=True)
 
     @subscribe(threadMode= Mode.PARALLEL, onEvent=Message)
     def onReceive(self, message: Message):
+        self.reorgEvent.wait()
         if not self.alive.is_set():
             return
         self.initializedEvent.wait()
