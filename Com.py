@@ -23,7 +23,8 @@ class Com:
 
         self.name = name
         self.nameTable = dict[str, int]()
-        
+        self.heartBitMutex = Lock()
+        self.heartBitTable = dict[int, float]()
 
         self.receivedNumbers: list[tuple[int, str]] = []
         self.mutex = Lock()
@@ -197,7 +198,12 @@ class Com:
     
     @subscribe(threadMode= Mode.PARALLEL, onEvent= HeartbitMessage)
     def receiveHeartbit(self, message: HeartbitMessage):
-        pass
+        if not self.alive.is_set():
+            return
+        self.initializedEvent.wait()
+
+        with self.heartBitMutex:
+            self.heartBitTable[message.sender] = time.time()
 
     def broadcast(self, message: any):
         self.clock.inc_clock()
