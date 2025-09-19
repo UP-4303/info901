@@ -1,3 +1,4 @@
+from __future__ import annotations
 import collections
 from time import sleep
 from pyeventbus3.pyeventbus3 import *
@@ -14,12 +15,15 @@ class Com:
     timeout = 1
     maxRand = 100
 
-    def __init__(self):
+    def __init__(self, name: str):
         self.mailbox = Mailbox()
         self.clock = LamportClock()
         PyBus.Instance().register(self, self)
 
-        self.receivedNumbers = []
+        self.name = name
+        self.agenda = dict[str, int]()
+
+        self.receivedNumbers: list[tuple[int, str]] = []
         self.mutex = Lock()
         self.id: None | int = None
         self.nbProcess: None | int = None
@@ -40,7 +44,7 @@ class Com:
         self.joinEvent: Event = Event()
         self.joiningIds: set = set()
 
-        self.alive = False
+        self.alive = True
         self.initializedEvent: Event = Event()
 
         self.autoId()
@@ -53,28 +57,34 @@ class Com:
             self.receivedNumbers.append(message.content)
 
     def autoId(self) -> None:
-        self.alive = True
-
-        sleep(Com.timeout)
         myNumber = None
+        sleep(Com.timeout)
         while True:
             if myNumber == None:
                 myNumber = randint(0, Com.maxRand)
-                PyBus.Instance().post(AutoIdMessage(None, None, myNumber))
+                PyBus.Instance().post(AutoIdMessage([myNumber, self.name]))
             sleep(Com.timeout)
             
-            duplicate = [item for item, count in collections.Counter(self.receivedNumbers).items() if count > 1]
+            with self.mutex:
+                numbers = [item[0] for item in self.receivedNumbers]
+            duplicate = [num for num, count in collections.Counter(numbers).items() if count > 1]
             if len(duplicate) > 0:
-                self.receivedNumbers = [item for item in self.receivedNumbers if not item in duplicate]
+                with self.mutex:
+                    self.receivedNumbers = [item for item in self.receivedNumbers if not item[0] in duplicate]
                 if myNumber in duplicate:
                     myNumber = None
             else:
                 break
 
-        self.receivedNumbers.sort()
-        self.id = self.receivedNumbers.index(myNumber)
-        self.nbProcess = len(self.receivedNumbers)
-        return
+        with self.mutex:
+            self.receivedNumbers.sort()
+            for i, item in enumerate(self.receivedNumbers):
+                self.agenda[item[1]] = i
+                if item[0] == myNumber and item[1] == self.name:
+                    self.id = i
+
+            print(f"<{self.id}> agenda: {self.agenda}", flush=True)
+            self.nbProcess = len(self.receivedNumbers)
     
     def startToken(self) -> None:
         if self.id == self.nbProcess - 1:

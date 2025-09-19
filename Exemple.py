@@ -20,7 +20,7 @@ class Process(Thread):
         self.start()
     
     def init(self):
-        self.com = Com()
+        self.com = Com(self.getName())
         self.nbProcess = self.com.getNbProcess()
         self.myId = self.com.getMyId()
 
@@ -55,7 +55,7 @@ class Process(Thread):
                 print(f"<1> waiting for a message...", flush=True)
                 sleep(0.5)
             msg = self.com.mailbox.getMessage()
-            print(f"<1> Reçu de "+str(msg.getSender())+" : "+str(msg.getContent()), flush=True)
+            print(f"<1> Reçu de {msg.getSender()} : {msg.getContent()}", flush=True)
 
             msg = self.com.recevFromSync(0)
             print(f"<1> Reçu de 0 : {msg.getContent()}", flush=True)

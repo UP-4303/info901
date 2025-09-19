@@ -14,8 +14,8 @@ class Message:
         return self.content
     
 class AutoIdMessage(Message):
-    def __init__(self, sender: int, recipient: int, content: int):
-        super(AutoIdMessage, self).__init__(sender, recipient, content, 0, True)
+    def __init__(self, content: tuple[int, str]):
+        super(AutoIdMessage, self).__init__(None, None, content, 0, True)
 
 class AckMessage(Message):
     def __init__(self, sender: int, recipient: int):
