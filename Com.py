@@ -23,8 +23,8 @@ class Com:
 
         self.name = name
         self.nameTable = dict[str, int]()
-        self.heartBitMutex = Lock()
-        self.heartBitTable = dict[int, float]()
+        self.heartbitMutex = Lock()
+        self.heartbitTable = dict[int, float]()
 
         self.receivedNumbers: list[tuple[int, str]] = []
         self.mutex = Lock()
@@ -203,8 +203,8 @@ class Com:
             return
         self.initializedEvent.wait()
 
-        with self.heartBitMutex:
-            self.heartBitTable[message.sender] = time.time()
+        with self.heartbitMutex:
+            self.heartbitTable[message.sender] = time.time()
 
     def broadcast(self, message: any):
         self.clock.inc_clock()
@@ -221,7 +221,7 @@ class Com:
         self.ackEvent.clear()
 
     def checkHearbits(self):
-        pass
+        with self.heartbitMutex
 
     @subscribe(threadMode= Mode.PARALLEL, onEvent=Message)
     def onReceive(self, message: Message):
