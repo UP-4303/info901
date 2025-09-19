@@ -54,8 +54,13 @@ class Com:
         self.startToken()
         self.initializedEvent.set()
 
-        LoopTask(1, self.sendHeartbit, (), self.alive)
-        LoopTask(5, self.checkHearbits, (), self.alive)
+        self.killEvent = Event()
+        LoopTask(1, self.sendHeartbit, (), self.killEvent)
+        LoopTask(5, self.checkHearbits, (), self.killEvent)
+    
+    def stop(self):
+        self.alive.clear()
+        self.killEvent.set()
 
     @subscribe(threadMode= Mode.PARALLEL, onEvent=AutoIdMessage)
     def onAutoIdReceive(self, message: AutoIdMessage):
