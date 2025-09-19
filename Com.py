@@ -62,7 +62,7 @@ class Com:
 
     def autoId(self) -> None:
         self.alive.set()
-        
+
         myNumber = None
         sleep(Com.timeout)
         while True:
@@ -212,6 +212,9 @@ class Com:
         PyBus.Instance().post(Message(self.id, None, message, self.clock.clock, ackNeeded=True))
         self.ackEvent.wait()
         self.ackEvent.clear()
+
+    def checkHearbits(self):
+        pass
 
     @subscribe(threadMode= Mode.PARALLEL, onEvent=Message)
     def onReceive(self, message: Message):
