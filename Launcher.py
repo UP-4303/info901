@@ -7,7 +7,7 @@ def launch(nbProcess, runningTime=5):
     for i in range(nbProcess):
         processes.append(Process("P"+str(i)))
 
-    # sleep(runningTime)
+    sleep(runningTime)
 
     # for p in processes:
     #     p.stop()

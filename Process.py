@@ -63,6 +63,9 @@ class Process(Thread):
 
 
         if self.name == "P1":
+            # self.com.stop()
+            # return # test pour heartbit et reorg
+        
             while self.com.mailbox.isEmpty():
                 print(f"@P1 - waiting for a message...", flush=True)
                 sleep(0.5)

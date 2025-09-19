@@ -3,6 +3,10 @@ from threading import Lock
 class LamportClock:
     """
     Implémentation d'une horloge logique de Lamport pour la synchronisation des événements dans un système distribué.
+
+    Attributs:
+        clock (int): Valeur actuelle de l'horloge Lamport.
+        semaphore (Lock): Verrou pour synchroniser les accès concurrents à l'horloge
     """
 
     def __init__(self):
