@@ -10,33 +10,6 @@ from Mailbox import Mailbox
 from Message import Message, AutoIdMessage, AckMessage, SyncMessage, TokenMessage, JoinMessage
 from LamportClock import LamportClock
 
-def aliveRequired(fun):
-    def decorator(com: Com, message: Message):
-        if not com.alive:
-            return
-        fun(com, message)
-    return decorator
-
-def initRequired(fun):
-    def decorator(com: Com, message: Message):
-        com.initializedEvent.wait()
-        fun(com, message)
-    return decorator
-
-def targetedToMe(fun):
-    def decorator(com: Com, message: Message):
-        if not message.recipient == com.id:
-            return
-        fun(com, message)
-    return decorator
-
-def targetedOrBroadcast(fun):
-    def decorator(com: Com, message: Message):
-        if not message.recipient == com.id and message.recipient == None:
-            return
-        fun(com, message)
-    return decorator
-
 class Com:
     timeout = 1
     maxRand = 100
@@ -75,7 +48,6 @@ class Com:
         self.initializedEvent.set()
 
     @subscribe(threadMode= Mode.PARALLEL, onEvent=AutoIdMessage)
-    @aliveRequired
     def onAutoIdReceive(self, message: AutoIdMessage):
         with self.mutex:
             self.receivedNumbers.append(message.content)
@@ -138,20 +110,26 @@ class Com:
         return msg
     
     @subscribe(threadMode= Mode.PARALLEL, onEvent=AckMessage)
-    @aliveRequired
-    @initRequired
-    @targetedToMe
     def onAckReceive(self, message: AckMessage):
+        if not self.alive:
+            return
+        self.initializedEvent.wait()
+        if message.recipient != self.id:
+            return
+        
         with self.waitingForAckLock:
             self.waitingForAck -= 1
             if self.waitingForAck == 0:
                 self.ackEvent.set()
     
     @subscribe(threadMode= Mode.PARALLEL, onEvent=SyncMessage)
-    @aliveRequired
-    @initRequired
-    @targetedToMe
     def onSyncReceive(self, message: SyncMessage):
+        if not self.alive:
+            return
+        self.initializedEvent.wait()
+        if message.recipient != self.id:
+            return
+        
         self.syncEvent.set()
         self.receiveLock.acquire()
         self.syncMessage = message
@@ -165,8 +143,9 @@ class Com:
         print(f"<{self.id}> synchronized with {self.nbProcess - 1} others", flush=True)
 
     @subscribe(threadMode= Mode.PARALLEL, onEvent=JoinMessage)
-    @aliveRequired
-    def onJoinReceive(self, message: JoinMessage):
+    def onJoinRecieve(self, message: JoinMessage):
+        if not self.alive:
+            return
         self.initializedEvent.wait()
 
         self.joiningIds.add(message.sender)
@@ -187,10 +166,13 @@ class Com:
         self.releaseTokenEvent.set()
 
     @subscribe(threadMode= Mode.PARALLEL, onEvent=TokenMessage)
-    @aliveRequired
-    @initRequired
-    @targetedToMe
-    def onTokenReceive(self, message: TokenMessage):        
+    def onTokenReceive(self, message: TokenMessage):
+        if not self.alive:
+            return
+        self.initializedEvent.wait()
+        if message.recipient != self.id:
+            return
+        
         if self.waitingForToken:
             self.waitingForToken = False
             self.requestTokenEvent.set()
@@ -212,12 +194,15 @@ class Com:
         self.ackEvent.clear()
 
     @subscribe(threadMode= Mode.PARALLEL, onEvent=Message)
-    @aliveRequired
-    @initRequired
-    @targetedOrBroadcast
     def onReceive(self, message: Message):
+        if not self.alive:
+            return
+        self.initializedEvent.wait()
+        if message.recipient != self.id and message.recipient is not None:
+            return
         if message.isSystem:
             return
+        
         self.clock.sync(message.clock)
         print(f'<{self.id}> receiving "{message.content}" from {message.sender} with clock {self.clock.clock}', flush=True)
         self.mailbox.addMessage(message)
