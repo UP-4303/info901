@@ -22,7 +22,8 @@ class Com:
         PyBus.Instance().register(self, self)
 
         self.name = name
-        self.agenda = dict[str, int]()
+        self.nameTable = dict[str, int]()
+        
 
         self.receivedNumbers: list[tuple[int, str]] = []
         self.mutex = Lock()
@@ -85,11 +86,11 @@ class Com:
         with self.mutex:
             self.receivedNumbers.sort()
             for i, item in enumerate(self.receivedNumbers):
-                self.agenda[item[1]] = i
+                self.nameTable[item[1]] = i
                 if item[0] == myNumber and item[1] == self.name:
                     self.id = i
 
-            print(f"<{self.name}:{self.id}> agenda: {self.agenda}", flush=True)
+            print(f"<{self.name}:{self.id}> nameTable: {self.nameTable}", flush=True)
             self.nbProcess = len(self.receivedNumbers)
     
     def startToken(self) -> None:
@@ -102,20 +103,20 @@ class Com:
 
     def sendTo(self, message: any, dest: str):
         self.clock.inc_clock()
-        print(f'<{self.name}:{self.id}> sending "{message}" to <{dest}:{self.agenda[dest]}> with clock {self.clock.clock}', flush=True)
-        PyBus.Instance().post(Message(self.id, self.agenda[dest], message, self.clock.clock))
+        print(f'<{self.name}:{self.id}> sending "{message}" to <{dest}:{self.nameTable[dest]}> with clock {self.clock.clock}', flush=True)
+        PyBus.Instance().post(Message(self.id, self.nameTable[dest], message, self.clock.clock))
 
     def sendToSync(self, message: any, dest: str):
         with self.waitingForAckLock:
             self.waitingForAck = 1
-        PyBus.Instance().post(SyncMessage(self.id, self.agenda[dest], message, self.clock.clock))
+        PyBus.Instance().post(SyncMessage(self.id, self.nameTable[dest], message, self.clock.clock))
         self.ackEvent.wait()
         self.ackEvent.clear()
 
     def recevFromSync(self, src: str) -> Message:
         self.syncEvent.wait()
         self.syncEvent.clear()
-        PyBus.Instance().post(AckMessage(self.id, self.agenda[src]))
+        PyBus.Instance().post(AckMessage(self.id, self.nameTable[src]))
         msg = self.syncMessage
         self.clock.sync(msg.clock)
         self.syncMessage = None
