@@ -87,7 +87,7 @@ class Com:
 
     def sendTo(self, message: any, destId: int):
         self.clock.inc_clock()
-        print(f'{self.id} sending "{message}" to {destId} with clock {self.clock.clock}', flush=True)
+        print(f'<{self.id}> sending "{message}" to {destId} with clock {self.clock.clock}', flush=True)
         PyBus.Instance().post(Message(self.id, destId, message, self.clock.clock))
 
     def sendToSync(self, message: any, destId: int):
@@ -123,32 +123,32 @@ class Com:
             self.syncMessage = message
 
     def synchronize(self):
-        print(f"Process {self.id} is synchronizing", flush=True)
+        print(f"<{self.id}> is synchronizing", flush=True)
         PyBus.Instance().post(JoinMessage(self.id))
         self.joinEvent.wait()
         self.joinEvent.clear()
         self.joiningIds.clear()
-        print(f"Process {self.id} synchronized with {self.nbProcess - 1} others", flush=True)
+        print(f"<{self.id}> synchronized with {self.nbProcess - 1} others", flush=True)
 
     @subscribe(threadMode= Mode.PARALLEL, onEvent=JoinMessage)
     def onJoinRecieve(self, message: JoinMessage):
         if not self.alive:
             return
         self.joiningIds.add(message.sender)
-        print(f"Process {self.id} received join from {message.sender}, currently at {len(self.joiningIds)}/{self.nbProcess}", flush=True)
+        print(f"<{self.id}> received join from {message.sender}, currently at {len(self.joiningIds)}/{self.nbProcess}", flush=True)
         if len(self.joiningIds) == self.nbProcess:
             self.joinEvent.set()
 
     def requestSC(self):
-        print(f"Process {self.id} is requesting critical section", flush=True)
+        print(f"<{self.id}> is requesting critical section", flush=True)
         self.waitingForToken = True
         self.releaseTokenEvent.clear()
         self.requestTokenEvent.wait()
         self.requestTokenEvent.clear()
-        print(f"Process {self.id} got the token", flush=True)
+        print(f"<{self.id}> got the token", flush=True)
 
     def releaseSC(self):
-        print(f"Process {self.id} is releasing critical section", flush=True)
+        print(f"<{self.id}> is releasing critical section", flush=True)
         self.releaseTokenEvent.set()
 
     @subscribe(threadMode= Mode.PARALLEL, onEvent=TokenMessage)
@@ -162,12 +162,12 @@ class Com:
 
     def broadcast(self, message: any):
         self.clock.inc_clock()
-        print(f'{self.id} broadcasting "{message}" with clock {self.clock.clock}', flush=True)
+        print(f'<{self.id}> broadcasting "{message}" with clock {self.clock.clock}', flush=True)
         PyBus.Instance().post(Message(self.id, None, message, self.clock.clock))
     
     def ackNeededBroadcast(self, message: any):
         self.clock.inc_clock()
-        print(f'{self.id} broadcasting "{message}" asking for ACK with clock {self.clock.clock}', flush=True)
+        print(f'<{self.id}> broadcasting "{message}" asking for ACK with clock {self.clock.clock}', flush=True)
         with self.waitingForAckLock:
             self.waitingForAck = self.nbProcess
         PyBus.Instance().post(Message(self.id, None, message, self.clock.clock, ackNeeded=True))
@@ -179,8 +179,8 @@ class Com:
         if (message.recipient != self.id and message.recipient != None) or message.isSystem or not self.alive:
             return
         self.clock.sync(message.clock)
-        print(f'{self.id} receiving "{message.content}" from {message.sender} with clock {self.clock.clock}', flush=True)
+        print(f'<{self.id}> receiving "{message.content}" from {message.sender} with clock {self.clock.clock}', flush=True)
         self.mailbox.addMessage(message)
         if message.ackNeeded:
-            print(f'{self.id} sending ACK to {message.sender} with clock {self.clock.clock}', flush=True)
+            print(f'<{self.id}> sending ACK to {message.sender}', flush=True)
             PyBus.Instance().post(AckMessage(self.id, message.sender))
