@@ -13,12 +13,24 @@ from LamportClock import LamportClock
 from LoopTask import LoopTask
 
 class Com:
+    """
+    Com permet de gérer la communication entre processus, elle inclue l'envoie et la réception des messages synchrone et asynchrone via une boite aux lettres,
+    la gestion des tokens, l'attente de barrière, des heartbeats et de la réorganisation dans un système distribué.
+
+    Args:
+        name (str): Le nom du processus.
+            /!\ utiliser un nom unique pour chaque processus /!\\
+    """
     timeout = 1
     maxRand = 100
     sendHeartbitEvery = 1
     checkHeartbitEvery = 5
 
     def __init__(self, name: str):
+        """
+        Initialise une instance de Com avec le nom du processus, les structures de synchronisation,
+        les événements, la boîte aux lettres, l'horloge logique et démarre les tâches de fond.
+        """
         self.mailbox = Mailbox()
         self.clock = LamportClock()
         PyBus.Instance().register(self, self)
@@ -63,15 +75,25 @@ class Com:
         LoopTask(Com.checkHeartbitEvery, self.checkHearbits, (), self.killEvent)
     
     def stop(self):
+        """
+        Arrête le processus en désactivant les événements de vie et de boucle.
+        """
         self.alive.clear()
         self.killEvent.set()
 
     @subscribe(threadMode= Mode.PARALLEL, onEvent=AutoIdMessage)
     def onAutoIdReceive(self, message: AutoIdMessage):
+        """
+        Handler pour la réception d'un message système de génération d'ID.
+        Ajoute le numéro reçu à la liste des numéros reçus.
+        """
         with self.mutex:
             self.receivedNumbers.append(message.content)
 
     def autoId(self) -> None:
+        """
+        Génère un identifiant unique pour le processus et construit la table des noms.
+        """
         self.alive.set()
 
         myNumber = None
@@ -104,14 +126,23 @@ class Com:
             self.nbProcess = len(self.receivedNumbers)
     
     def startToken(self) -> None:
+        """
+        Démarre la circulation du token si le processus est le dernier.
+        """
         if self.id == self.nbProcess - 1:
             sleep(Com.timeout)
             PyBus.Instance().post(TokenMessage(self.id, 0))
 
     def getNbProcess(self) -> int:
+        """
+        Retourne le nombre total de processus dans le système.
+        """
         return self.nbProcess
 
     def sendTo(self, message: any, dest: str):
+        """
+        Envoie un message asynchrone à un destinataire spécifique.
+        """
         self.reorgEvent.wait()
         if dest not in self.nameTable:
             print(f"<{self.name}:{self.id}> ERROR: destination {dest} unknown", flush=True)
@@ -122,6 +153,9 @@ class Com:
         PyBus.Instance().post(Message(self.id, self.nameTable[dest], message, self.clock.clock))
 
     def sendToSync(self, message: any, dest: str):
+        """
+        Envoie un message synchronisé à un destinataire et attend l'ACK.
+        """
         self.reorgEvent.wait()
         if dest not in self.nameTable:
             print(f"<{self.name}:{self.id}> ERROR: destination {dest} unknown", flush=True)
@@ -134,6 +168,9 @@ class Com:
         self.ackEvent.clear()
 
     def recevFromSync(self, src: str) -> Message:
+        """
+        Attend la réception d'un message synchronisé depuis une source spécifique et renvoie le message reçu.
+        """
         self.reorgEvent.wait()
         if src not in self.nameTable:
             print(f"<{self.name}:{self.id}> ERROR: source {src} unknown", flush=True)
@@ -150,6 +187,9 @@ class Com:
     
     @subscribe(threadMode= Mode.PARALLEL, onEvent=AckMessage)
     def onAckReceive(self, message: AckMessage):
+        """
+        Handler pour la réception d'un message d'ACK.
+        """
         self.reorgEvent.wait()
         if not self.alive.is_set():
             return
@@ -164,6 +204,9 @@ class Com:
     
     @subscribe(threadMode= Mode.PARALLEL, onEvent=SyncMessage)
     def onSyncReceive(self, message: SyncMessage):
+        """
+        Handler pour la réception d'un message synchronisé.
+        """
         self.reorgEvent.wait()
         if not self.alive.is_set():
             return
@@ -176,6 +219,9 @@ class Com:
         self.syncMessage = message
 
     def synchronize(self):
+        """
+        Synchronise le processus avec tous les autres.
+        """
         self.reorgEvent.wait()
         print(f"<{self.name}:{self.id}> is synchronizing", flush=True)
         PyBus.Instance().post(JoinMessage(self.id))
@@ -186,6 +232,9 @@ class Com:
 
     @subscribe(threadMode= Mode.PARALLEL, onEvent=JoinMessage)
     def onJoinRecieve(self, message: JoinMessage):
+        """
+        Handler pour la réception d'un message de synchronisation.
+        """
         self.reorgEvent.wait()
         if not self.alive.is_set():
             return
@@ -197,6 +246,9 @@ class Com:
             self.joinEvent.set()
 
     def requestSC(self):
+        """
+        Demande l'accès à la section critique en attendant le token.
+        """
         self.reorgEvent.wait()
         print(f"<{self.name}:{self.id}> is requesting critical section", flush=True)
         self.waitingForToken = True
@@ -206,12 +258,19 @@ class Com:
         print(f"<{self.name}:{self.id}> got the token", flush=True)
 
     def releaseSC(self):
+        """
+        Libère la section critique et le token.
+        """
         self.reorgEvent.wait()
         print(f"<{self.name}:{self.id}> is releasing critical section", flush=True)
         self.releaseTokenEvent.set()
 
     @subscribe(threadMode= Mode.PARALLEL, onEvent=TokenMessage)
     def onTokenReceive(self, message: TokenMessage):
+        """
+        Handler pour la réception d'un message TokenMessage.
+        Gère la circulation du token et l'accès à la section critique.
+        """
         self.reorgEvent.wait()
         if not self.alive.is_set():
             return
@@ -226,10 +285,16 @@ class Com:
         PyBus.Instance().post(TokenMessage(self.id, (self.id + 1) % self.nbProcess))
 
     def sendHeartbit(self):
+        """
+        Envoie un message Heartbit pour signaler que le processus est vivant.
+        """
         PyBus.Instance().post(HeartbitMessage(self.id))
     
     @subscribe(threadMode= Mode.PARALLEL, onEvent= HeartbitMessage)
     def receiveHeartbit(self, message: HeartbitMessage):
+        """
+        Handler pour la réception d'un message de heartbeat.
+        """
         if not self.alive.is_set():
             return
         self.initializedEvent.wait()
@@ -239,12 +304,18 @@ class Com:
             self.heartbitTable[message.sender] = time.time()
 
     def broadcast(self, message: any):
+        """
+        Diffuse un message asynchrone à tous les processus.
+        """
         self.reorgEvent.wait()
         self.clock.inc_clock()
         print(f'<{self.name}:{self.id}> broadcasting "{message}" with clock {self.clock.clock}', flush=True)
         PyBus.Instance().post(Message(self.id, None, message, self.clock.clock))
     
     def ackNeededBroadcast(self, message: any):
+        """
+        Diffuse un message à tous les processus en attendant un ACK de chacun.
+        """
         self.reorgEvent.wait()
         self.clock.inc_clock()
         print(f'<{self.name}:{self.id}> broadcasting "{message}" asking for ACK with clock {self.clock.clock}', flush=True)
@@ -255,6 +326,9 @@ class Com:
         self.ackEvent.clear()
 
     def checkHearbits(self):
+        """
+        Vérifie les heartbeats reçus et détecte les processus défaillants.
+        """
         with self.heartbitMutex:
             fails = []
             for id, lastTime in list(self.heartbitTable.items()):
@@ -270,6 +344,10 @@ class Com:
     
     @subscribe(threadMode= Mode.PARALLEL, onEvent= ReorgMessage)
     def receiveReorg(self, message: ReorgMessage):
+        """
+        Handler pour la réception d'un message de réorganisation.
+        Bloque les autres opérations pendant la réorganisation.
+        """
         if not self.alive.is_set():
             return
         self.initializedEvent.wait()
@@ -279,6 +357,10 @@ class Com:
 
     @subscribe(threadMode= Mode.PARALLEL, onEvent=Message)
     def onReceive(self, message: Message):
+        """
+        Handler pour la réception d'un message générique.
+        Met à jour l'horloge, ajoute le message à la boîte aux lettres et gère les ACK si nécessaire.
+        """
         self.reorgEvent.wait()
         if not self.alive.is_set():
             return
