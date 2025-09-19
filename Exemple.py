@@ -93,7 +93,7 @@ class Process(Thread):
         self.stop()
 
     def stop(self):
-        self.com.alive = False
+        self.com.alive.clear()
         self.alive = False
 
     def waitStopped(self):

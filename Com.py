@@ -7,8 +7,9 @@ from threading import Lock, Event
 from random import randint
 
 from Mailbox import Mailbox
-from Message import Message, AutoIdMessage, AckMessage, SyncMessage, TokenMessage, JoinMessage
+from Message import Message, AutoIdMessage, AckMessage, SyncMessage, TokenMessage, JoinMessage, HeartbitMessage
 from LamportClock import LamportClock
+from LoopTask import LoopTask
 
 class Com:
     timeout = 1
@@ -40,12 +41,14 @@ class Com:
         self.joinEvent: Event = Event()
         self.joiningIds: set = set()
 
-        self.alive = False
+        self.alive: Event = Event()
         self.initializedEvent: Event = Event()
 
         self.autoId()
         self.startToken()
         self.initializedEvent.set()
+
+        LoopTask(0.1, self.sendHeartbit, (), self.alive)
 
     @subscribe(threadMode= Mode.PARALLEL, onEvent=AutoIdMessage)
     def onAutoIdReceive(self, message: AutoIdMessage):
@@ -53,7 +56,7 @@ class Com:
             self.receivedNumbers.append(message.content)
 
     def autoId(self) -> None:
-        self.alive = True
+        self.alive.set()
 
         sleep(Com.timeout)
         myNumber = None
@@ -111,7 +114,7 @@ class Com:
     
     @subscribe(threadMode= Mode.PARALLEL, onEvent=AckMessage)
     def onAckReceive(self, message: AckMessage):
-        if not self.alive:
+        if not self.alive.is_set():
             return
         self.initializedEvent.wait()
         if message.recipient != self.id:
@@ -124,7 +127,7 @@ class Com:
     
     @subscribe(threadMode= Mode.PARALLEL, onEvent=SyncMessage)
     def onSyncReceive(self, message: SyncMessage):
-        if not self.alive:
+        if not self.alive.is_set():
             return
         self.initializedEvent.wait()
         if message.recipient != self.id:
@@ -144,7 +147,7 @@ class Com:
 
     @subscribe(threadMode= Mode.PARALLEL, onEvent=JoinMessage)
     def onJoinRecieve(self, message: JoinMessage):
-        if not self.alive:
+        if not self.alive.is_set():
             return
         self.initializedEvent.wait()
 
@@ -167,7 +170,7 @@ class Com:
 
     @subscribe(threadMode= Mode.PARALLEL, onEvent=TokenMessage)
     def onTokenReceive(self, message: TokenMessage):
-        if not self.alive:
+        if not self.alive.is_set():
             return
         self.initializedEvent.wait()
         if message.recipient != self.id:
@@ -178,6 +181,13 @@ class Com:
             self.requestTokenEvent.set()
         self.releaseTokenEvent.wait()
         PyBus.Instance().post(TokenMessage(self.id, (self.id + 1) % self.nbProcess))
+
+    def sendHeartbit(self):
+        PyBus.Instance().post(HeartbitMessage(self.id))
+    
+    @subscribe(threadMode= Mode.PARALLEL, onEvent= HeartbitMessage)
+    def receiveHeartbit(self, message: HeartbitMessage):
+        pass
 
     def broadcast(self, message: any):
         self.clock.inc_clock()
@@ -195,7 +205,7 @@ class Com:
 
     @subscribe(threadMode= Mode.PARALLEL, onEvent=Message)
     def onReceive(self, message: Message):
-        if not self.alive:
+        if not self.alive.is_set():
             return
         self.initializedEvent.wait()
         if message.recipient != self.id and message.recipient is not None:

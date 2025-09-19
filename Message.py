@@ -37,4 +37,4 @@ class JoinMessage(Message):
 
 class HeartbitMessage(Message):
     def __init__(self, sender: int):
-        super(HeartbitMessage).__init__(sender, None, None, 0, True)
+        super(HeartbitMessage,self).__init__(sender, None, None, 0, True)
